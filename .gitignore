@@ -1,0 +1,6 @@
+# Specify filepatterns you want git to ignore.
+.DS_Store
+.ipynb_checkpoints
+*.csv
+*.png
+*.bz2
