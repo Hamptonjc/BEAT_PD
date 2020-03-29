@@ -1,0 +1,306 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.4.1
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+# BEAT-PD VGG16
+
+```{python}
+# Disable autosave
+# #%autosave 0
+```
+
+```{python}
+# Jupyter Theme switch
+
+#Light theme
+# #!jt -t grade3
+
+#Dark theme
+# #!jt -t chesterish
+
+```
+
+```{python}
+# Imports
+import os
+import sys
+import time
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+# %matplotlib inline
+
+import torch
+import pytorch_lightning as pl
+from pytorch_lightning.logging import TensorBoardLogger
+from tensorboard import notebook
+from argparse import Namespace
+import torch.nn as nn
+import torchvision as tv
+import torchvision.transforms.functional as TF
+from torch.nn import functional as F
+from torchvision import transforms, models
+from torch.utils import data
+from torch.utils.data import DataLoader
+from PIL import Image
+import glob
+import random
+```
+
+```{python}
+# %run -i Training_Dataset.py
+# %run -i Torch_Dataset.py
+# %run -i EvalUtilities.py
+```
+
+# Training Dataset
+
+```{python}
+## REAL config
+
+# dataset_name = 'REAL'
+# label_class = 'on_off'
+# sort_by = 'on_off'
+# train_ts_dir = 'Data/BEATPDchallenge/BeatPDRealPDupdated/real-pd.training_data_updated/training_data/'
+# train_label_dir = 'Data/BEATPDchallenge/data_labels-realpd/REAL-PD_Training_Data_IDs_Labels.csv'
+# ancil_ts_dir = 'Data/BEATPDchallenge/BeatPDRealPDupdated/real-pd.ancillary_data_updated/ancillary_data/'
+# ancil_label_dir = 'Data/BEATPDchallenge/data_labels-realpd/REAL-PD_Ancillary_Data_IDs_Labels.csv'
+```
+
+```{python}
+# CIS config
+
+dataset_name = 'CIS'
+label_class = 'on_off'
+sort_by = 'subject_id'
+train_ts_dir = 'Data/BEATPDchallenge/training_data-cispd/'
+train_label_dir = 'Data/BEATPDchallenge/data_labels-cispd/CIS-PD_Training_Data_IDs_Labels.csv'
+ancil_ts_dir = 'Data/BEATPDchallenge/ancillary_data-cispd/'
+ancil_label_dir = 'Data/BEATPDchallenge/data_labels-cispd/CIS-PD_Ancillary_Data_IDs_Labels.csv'
+```
+
+```{python}
+dataset = Training_Dataset(dataset_name=dataset_name, sort_by=sort_by,
+                           train_ts_dir=train_ts_dir, train_label_dir=train_label_dir,
+                           ancil_ts_dir=ancil_ts_dir, ancil_label_dir=ancil_label_dir,
+                           combine_ancil=True)
+```
+
+```{python}
+dataset.data_dict.keys()
+```
+
+```{python}
+dataset.run_preprocessing(specific_key_dataset=1004)
+```
+
+# Train Validation Split
+
+```{python}
+dataset.train_validation_split(val_proportion=0.2)
+```
+
+```{python}
+print('Training size:',len(dataset.train_list))
+print('Validation size:',len(dataset.val_list))
+```
+
+# VGG16
+
+```{python}
+# Load instance of VGG16
+torch.manual_seed(314)
+VGG16 = models.vgg16(pretrained=True)
+```
+
+```{python}
+# View final classifer section
+VGG16.classifier[6]
+```
+
+```{python}
+# Turn of gradients for VGG16 parameters
+for param in VGG16.parameters():
+    param.requires_grad = False
+```
+
+```{python}
+# Modify last layer to have an output size of 5 (for our 5 classes)
+torch.manual_seed(314)
+VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
+                                    nn.Linear(512,5))
+```
+
+```{python}
+# View classifer section of VGG16
+VGG16.classifier
+```
+
+# Lightning
+
+```{python}
+class LightningVGG16(pl.LightningModule):
+
+    def __init__(self, hparams, train_set, val_set):
+        super(LightningVGG16, self).__init__()
+        self.vgg16 = VGG16
+        self.learning_rate = hparams.learning_rate
+        self.train_batch_size = hparams.train_batch_size
+        self.val_batch_size = hparams.val_batch_size
+        self.train_set = train_set
+        self.val_set = val_set
+        
+    def forward(self, x):
+        x = self.vgg16(x)
+        return x
+    
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.vgg16.classifier[6].parameters(), lr=self.learning_rate)
+    
+    def training_step(self, train_batch, batch_idx):
+        batch_corr = 0
+        x, y = train_batch
+        logits = self.forward(x)
+        loss =  F.cross_entropy(logits, y)
+        pred = logits.argmax(dim=1, keepdim=True)
+        batch_corr += pred.eq(y.view_as(pred)).sum().item()
+        acc = torch.tensor((batch_corr/self.train_batch_size) * 100)
+        train_logs = {'training Loss': loss, 'Training Accuracy': acc, 'Number Correct in Training Batch': batch_corr}
+        return {'loss': loss, 'Correct': batch_corr, 'acc': acc, 'log': train_logs}
+    
+    def validation_step(self, val_batch, batch_idx):
+        batch_corr = 0
+        x, y = val_batch
+        logits = self.forward(x)
+        loss = F.cross_entropy(logits, y)
+        pred = logits.argmax(dim=1, keepdim=True)
+        batch_corr += pred.eq(y.view_as(pred)).sum().item()
+        acc = torch.tensor((batch_corr/self.val_batch_size) * 100)
+        val_logs = {'Validation Loss': loss, 'Validation Accuracy': acc, 'Number Correct in Validation Batch': batch_corr}
+        return {'val_loss': loss, 'val_acc': acc, 'log': val_logs}
+        
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
+        tensorboard_logs = {'Average Validation Loss': avg_loss, 'Average Validation Accuracy': avg_acc}
+        return {'val_loss': avg_loss, 'val_acc': avg_acc, 'log': tensorboard_logs}
+        
+    def prepare_data(self):
+        self.prepped_trainset = SpecDataset(self.train_set)
+        self.prepped_valset = SpecDataset(self.val_set)
+        
+    def train_dataloader(self):
+        return DataLoader(self.prepped_trainset,batch_size=self.train_batch_size, shuffle=True)
+    
+    def val_dataloader(self):
+        return DataLoader(self.prepped_valset,batch_size=self.val_batch_size, shuffle=True)
+```
+
+```{python}
+# Hyperparameters
+hparams = Namespace(**{'learning_rate': 0.001, 'train_batch_size': 10,
+                       'val_batch_size': 10})
+```
+
+```{python}
+# Run training/validation of model
+model = LightningVGG16(hparams,train_set=train, val_set=val)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version='Subchallenge 1')
+trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+trainer.fit(model)
+```
+
+```{python}
+# Start tensorboard
+notebook.start('--logdir lightning_logs --host localhost --port 6266')
+```
+
+```{python}
+# Display tensorboard
+notebook.display(port=6266)
+```
+
+```{python}
+# List tensorboard instances
+#notebook.list()
+```
+
+```{python}
+#tensorboard kill
+# #!taskkill /pid 11468 /f
+```
+
+```{python}
+#torch.cuda.empty_cache()
+```
+
+# Predictions
+
+```{python}
+# Load submission template
+submission = pd.read_csv('Data/BEAT-PD_SC1_OnOff_Submission_Template.csv')
+submission.head()
+```
+
+```{python}
+# Predict and fill in submission template
+for measurement, id_ in testdataset:
+    output = model(torch.unsqueeze(TF.to_tensor(measurement).cuda(), dim=0))
+    prediction = output.argmax(dim=1, keepdim=True).item()
+    df_index = submission.index[submission['measurement_id'] == id_]
+    submission.prediction[df_index] = prediction
+```
+
+```{python}
+# View predictions
+pd.options.display.max_rows = 800
+submission.head(n=800)
+```
+
+```{python}
+#Save submission df to CSV
+submission.to_csv('Data/sc1_cis_submissions.csv', index=False)
+```
+
+```{python}
+class Foobar():
+    def __init__(self, string):
+        self.string = string
+        
+    def func1(self):
+        self.string = 'ahhhh'
+        
+    def func2(stuff):
+        stuff = 'ahhhh'
+        return string + stuff
+```
+
+```{python}
+foo = Foobar('sup')
+```
+
+```{python}
+foo.func1()
+```
+
+```{python}
+foo.string
+```
+
+```{python}
+foo.func2()
+```
+
+```{python}
+
+```

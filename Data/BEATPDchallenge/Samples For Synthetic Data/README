@@ -1,7 +1,0 @@
-ReadMe:
-
-- Data is the center 10 minutes of original time series. 
-
-- Samples picked had a high correlation with samples in their own class and a low correlation with samples in the other class.
-
-- Measurement IDs weren’t saved however at request I can retrieve them.

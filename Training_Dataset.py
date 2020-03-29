@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 import warnings
+import random
 import matplotlib.pyplot as plt
 import sklearn
 from tqdm import tqdm
@@ -12,10 +13,13 @@ from scipy.fftpack import fft
 from scipy.signal import get_window
 from numba import jit
 
+class Training_Dataset():
+    '''
+    dataset_name: 'CIS' or 'REAL'
 
-class Training_Dataset:
-    
-    '''train_ts_dir: Directory to training time series.
+    sort_by: Keys for dict, 'subject_id', 'on_off', 'dyskinesia', 'tremor'
+
+    train_ts_dir: Directory to training time series.
     
     train_label_dir: Directory to training labels.
     
@@ -23,31 +27,25 @@ class Training_Dataset:
     
     ancil_label_dir: Directory to ancillary labels.
     
-    sort_by: subject_id, on_off, dyskinesia, tremor.
-    
     combine_ancil = True: Combine training and ancillary data.
-    
-    dataset_name: 'CIS' or 'REAL'
-    
     '''
-    
-    def __init__(self, train_ts_dir, train_label_dir,
-                 ancil_ts_dir, ancil_label_dir, sort_by,dataset_name,
-                 combine_ancil=True):
+    def __init__(self, dataset_name, sort_by,
+                 train_ts_dir, train_label_dir,
+                 ancil_ts_dir, ancil_label_dir, combine_ancil=True):
         self.train_ts_dir = train_ts_dir
         self.ancil_ts_dir = ancil_ts_dir
         self.sort_by = sort_by
         self.dataset_name = dataset_name
+        self.combine_ancil = combine_ancil
         self.train_labels = pd.read_csv(train_label_dir).replace(np.nan, 'nan', regex=True)
         self.ancil_labels = pd.read_csv(ancil_label_dir).replace(np.nan, 'nan', regex=True)
-        self.classes = self.train_labels[f'{self.sort_by}'].unique()
-        self.combine_ancil = combine_ancil
-        self.spec_arrays = []
-        self.spec_labels = []
+        self.data_list = []
         self.issue_measurements = []
         if self.combine_ancil:
             self.train_labels = pd.concat([self.train_labels, 
                                            self.ancil_labels]).reset_index(drop=True)
+        self.classes = self.train_labels[self.sort_by].unique()
+        self.create_dictionary()
         
     def CIS_dictionary(self): # Create CIS dictionary
         self.data_dict = {k : [] for k in self.classes}
@@ -223,29 +221,30 @@ class Training_Dataset:
               'enter self.issue_measuements for a list of them.')
         
     
-    def run_preprocessing(self):
+    def run_preprocessing(self, specific_key_dataset=None):
+        '''
+        specific_key_dataset (OPTIONAL): Pick a specific key to preprocess and create a torch dataset with.
+
+        Use: For example, data dictionary is sorted by subject id. Select a specific subject to create a dataset to train with.
+        '''
+        if specific_key_dataset:
+            self.preprocessed_dict = {specific_key_dataset: self.data_dict[specific_key_dataset]}
+        else:   
+            self.preprocessed_dict = self.data_dict
         warnings.filterwarnings("ignore")
-        for key, tup_list in tqdm(self.data_dict.items(),'Preprocessing Data',
-                                 total=len(self.data_dict),position=0, leave=True):
+        for key, tup_list in tqdm(self.preprocessed_dict.items(),'Preprocessing Data',
+                                 total=len(self.preprocessed_dict),position=0, leave=True):
             for i, tup in enumerate(tup_list):
                 tup_list[i][0] = self.standard_preprocessing(tup[0])
                 tup_list[i] = tuple(tup)
-        for key, tup_list in tqdm(self.data_dict.items(), 'Forming Data Lists'):
+        for key, tup_list in self.preprocessed_dict.items():
             for i, tup in enumerate(tup_list):
-                self.spec_arrays.append(tup[0])
-                self.spec_labels.extend([key])
+                self.data_list.append(tup)
         warnings.filterwarnings("default")
-                
-    # def torch_transform(self, spec, label):
-    #     spec = TF.to_tensor(spec)
-    #     label = torch.tensor(label)
-    #     return spec, label
-        
-    # def __getitem__(self, index):
-    #     spec = self.spec_arrays[index]
-    #     label = self.spec_labels[index]
-    #     spec, label = self.torch_transform(spec, label)
-    #     return spec, label
-    
-    # def __len__(self):
-    #     return len(self.spec_arrays)
+
+    def train_validation_split(self, val_proportion=0.2):
+        random.shuffle(self.data_list)
+        split_index = int(len(self.data_list) * val_proportion)
+        self.train_list = self.data_list[split_index:]
+        self.val_list = self.data_list[:split_index]
+
