@@ -1,0 +1,521 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.4.1
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+# VGG16 on CIS-PD Spectrograms (w/ Lightning)
+
+```{python}
+# %autosave 0
+```
+
+```{python}
+# Jupyter Theme switch
+
+#Light theme
+# #!jt -t grade3
+
+#Dark theme
+# #!jt -t chesterish
+
+```
+
+```{python}
+# Imports
+import os
+import sys
+import time
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+# %matplotlib inline
+
+import torch
+import pytorch_lightning as pl
+from pytorch_lightning.logging import TensorBoardLogger
+from tensorboard import notebook
+from argparse import Namespace
+import torch.nn as nn
+import torchvision as tv
+import torchvision.transforms.functional as TF
+from torch.nn import functional as F
+from torchvision import transforms, models
+from torch.utils import data
+from torch.utils.data import DataLoader
+from PIL import Image
+import glob
+import random
+```
+
+```{python}
+# %run -i Training_Dataset.py
+```
+
+```{python}
+# %run -i EvalUtilities.py
+```
+
+```{python}
+train_ts_dir = 'Data/BEATPDchallenge/BeatPDRealPDupdated/real-pd.training_data_updated/training_data/'
+train_label_dir = 'Data/BEATPDchallenge/data_labels-realpd/REAL-PD_Training_Data_IDs_Labels.csv'
+ancil_ts_dir = 'Data/BEATPDchallenge/BeatPDRealPDupdated/real-pd.ancillary_data_updated/ancillary_data/'
+ancil_label_dir = 'Data/BEATPDchallenge/data_labels-realpd/REAL-PD_Ancillary_Data_IDs_Labels.csv'
+sort_by = 'on_off'
+dataset_name = 'REAL'
+```
+
+```{python}
+dataset = Training_Dataset(train_ts_dir=train_ts_dir, train_label_dir=train_label_dir,
+                 ancil_ts_dir=ancil_ts_dir, ancil_label_dir=ancil_label_dir,
+                 sort_by=sort_by, dataset_name=dataset_name, combine_ancil=True)
+```
+
+```{python}
+dataset.create_dictionary()
+```
+
+```{python}
+dataset.run_preprocessing()
+```
+
+```{python}
+type(dataset.data_dict[0][0])
+```
+
+```{python}
+# Directories
+root_dir = 'Data/'
+spec_dir = os.path.join(root_dir, 'CIS-PD Spectrograms/')
+```
+
+# Training Dataset
+
+```{python}
+### ISSUE: glob not recognizing files #####
+
+# # Making lists with all spectrograms as np arrays
+# spec_0 = []
+# for f in glob.iglob(spec_dir + '/Medication State 0/*.png'):
+#     spec_0.append(np.asarray(Image.open(f)))
+    
+# spec_1 = []
+# for f in glob.iglob(spec_dir + '/Medication State 1/*.png'):
+#     spec_1.append(np.asarray(Image.open(f)))
+    
+# spec_2 = []
+# for f in glob.iglob(spec_dir + '/Medication State 2/*.png'):
+#     spec_2.append(np.asarray(Image.open(f)))
+    
+# spec_3 = []
+# for f in glob.iglob(spec_dir + '/Medication State 3/*.png'):
+#     spec_3.append(np.asarray(Image.open(f)))
+    
+# spec_4 = []
+# for f in glob.iglob(spec_dir + '/Medication State 4/*.png'):
+#     spec_4.append(np.asarray(Image.open(f)))
+```
+
+```{python}
+# Works using raw paths
+# Making lists with all spectrograms as np arrays
+spec_0 = []
+for f in glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 0\*.png'):
+    spec_0.append(np.asarray(Image.open(f)))
+    
+spec_1 = []
+for f in glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 1\*.png'):
+    spec_1.append(np.asarray(Image.open(f)))
+    
+spec_2 = []
+for f in glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 2\*.png'):
+    spec_2.append(np.asarray(Image.open(f)))
+    
+spec_3 = []
+for f in glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 3\*.png'):
+    spec_3.append(np.asarray(Image.open(f)))
+    
+spec_4 = []
+for f in glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 4\*.png'):
+    spec_4.append(np.asarray(Image.open(f)))
+```
+
+```{python}
+# Functions to prepare spectrograms for model
+
+def crop_center(arr,cropx,cropy):
+    y,x,c = arr.shape
+    startx = x//2 - cropx//2
+    starty = y//2 - cropy//2    
+    return arr[starty:starty+cropy, startx:startx+cropx, :]
+
+def drop_4th_channel(arr):
+    return arr[:,:,:3]
+
+def SpecPrep(spec):
+    spec = crop_center(spec, cropx=670, cropy=272)
+    spec = drop_4th_channel(spec)
+    return spec
+```
+
+```{python}
+# Preparing spectrograms in each class
+for i, spec in enumerate(spec_0):
+    spec_0[i] = SpecPrep(spec) 
+    
+for i, spec in enumerate(spec_1):
+    spec_1[i] = SpecPrep(spec) 
+    
+for i, spec in enumerate(spec_2):
+    spec_2[i] = SpecPrep(spec)
+    
+for i, spec in enumerate(spec_3):
+    spec_3[i] = SpecPrep(spec)
+
+for i, spec in enumerate(spec_4):
+    spec_4[i] = SpecPrep(spec) 
+```
+
+```{python}
+###### ISSUE: same as above #######
+
+
+# # Making lists with all of the measurement IDs
+# id_list_0 = list(map(os.path.basename,glob.iglob(spec_dir + '/Medication State 0/*.png')))
+# for i, ID in enumerate(id_list_0):
+#     id_list_0[i] = os.path.splitext(ID)[0]
+    
+# id_list_1 = list(map(os.path.basename,glob.iglob(spec_dir + '/Medication State 1/*.png')))
+# for i, ID in enumerate(id_list_1):
+#     id_list_0[i] = os.path.splitext(ID)[0]
+    
+# id_list_2 = list(map(os.path.basename,glob.iglob(spec_dir + '/Medication State 2/*.png')))
+# for i, ID in enumerate(id_list_2):
+#     id_list_0[i] = os.path.splitext(ID)[0]
+    
+# id_list_3 = list(map(os.path.basename,glob.iglob(spec_dir + '/Medication State 3/*.png')))
+# for i, ID in enumerate(id_list_3):
+#     id_list_0[i] = os.path.splitext(ID)[0]
+    
+# id_list_4 = list(map(os.path.basename,glob.iglob(spec_dir + '/Medication State 4/*.png')))
+# for i, ID in enumerate(id_list_4):
+#     id_list_0[i] = os.path.splitext(ID)[0]
+    
+```
+
+```{python}
+# Works using raw paths
+# Making lists with all of the measurement IDs
+id_list_0 = list(map(os.path.basename,glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 0\*.png')))
+for i, ID in enumerate(id_list_0):
+    id_list_0[i] = os.path.splitext(ID)[0]
+    
+id_list_1 = list(map(os.path.basename,glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 1\*.png')))
+for i, ID in enumerate(id_list_1):
+    id_list_0[i] = os.path.splitext(ID)[0]
+    
+id_list_2 = list(map(os.path.basename,glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 2\*.png')))
+for i, ID in enumerate(id_list_2):
+    id_list_0[i] = os.path.splitext(ID)[0]
+    
+id_list_3 = list(map(os.path.basename,glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 3\*.png')))
+for i, ID in enumerate(id_list_3):
+    id_list_0[i] = os.path.splitext(ID)[0]
+    
+id_list_4 = list(map(os.path.basename,glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\zero_centered\Medication State 4\*.png')))
+for i, ID in enumerate(id_list_4):
+    id_list_0[i] = os.path.splitext(ID)[0]
+    
+```
+
+```{python}
+# Storing data as tuple with their respective measurement_id and label
+def AttachMetaData(spec_list, id_list, medstate):
+    for i, (spec, ID) in enumerate(zip(spec_list, id_list)):
+        spec_list[i] = (spec, ID, medstate)
+```
+
+```{python}
+AttachMetaData(spec_list=spec_0, id_list=id_list_0, medstate=0)
+AttachMetaData(spec_list=spec_1, id_list=id_list_1, medstate=1)
+AttachMetaData(spec_list=spec_2, id_list=id_list_2, medstate=2)
+AttachMetaData(spec_list=spec_3, id_list=id_list_3, medstate=3)
+AttachMetaData(spec_list=spec_4, id_list=id_list_4, medstate=4)
+```
+
+```{python}
+dataset = spec_0 + spec_1 + spec_2 + spec_3 + spec_4
+```
+
+## Validation Train Split
+
+```{python}
+# Shuffle dataset
+random.shuffle(dataset)
+```
+
+```{python}
+# Calculate a 20% test size
+int(len(dataset) * 0.2)
+```
+
+```{python}
+# Split for training and testing (indicies are upto but not inclusive so we start at 331)
+train = dataset[353:]
+val = dataset[:353]
+```
+
+```{python}
+print('Training size:',len(train))
+print('Validation size:',len(val))
+```
+
+## Pytorch Custom Dataset
+
+```{python}
+# Build PyTorch dataset
+class SpecDataset(data.Dataset):
+    def __init__(self, dataset):
+        self.dataset = dataset
+        
+    def transform(self,spec, label):
+        spec = TF.to_tensor(spec)
+        label = torch.tensor(label)
+        return spec, label
+        
+    def __getitem__(self, index):
+        spec = dataset[index][0]
+        label = dataset[index][2]
+        spec, label = self.transform(spec, label)
+        return spec, label
+    
+    def __len__(self):
+        return len(self.dataset)
+```
+
+# Test Dataset
+
+```{python}
+# Create list of test measurements
+test_measurements = []
+for f in glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\subchallenge 1 test specs\*.png'):
+    test_measurements.append(np.asarray(Image.open(f)))
+```
+
+```{python}
+# Prep the spectrograms
+for i, spec in enumerate(test_measurements):
+    test_measurements[i] = SpecPrep(spec)
+```
+
+```{python}
+# Create a list of measurement_ids
+test_ids = list(map(os.path.basename,glob.iglob(r'C:\Users\Jonathan\Documents\AI Projects\BEAT PD\Data\subchallenge 1 test specs\*.png')))
+for i, ID in enumerate(test_ids):
+    test_ids[i] = os.path.splitext(ID)[0]
+```
+
+```{python}
+# Combine spectrograms and IDs as tuples
+testdataset = []
+for measurement, id_ in zip(test_measurements,test_ids):
+    testdataset.append((measurement, id_))
+```
+
+# VGG16
+
+```{python}
+# Load instance of VGG16
+torch.manual_seed(314)
+VGG16 = models.vgg16(pretrained=True)
+```
+
+```{python}
+# View final classifer section
+VGG16.classifier[6]
+```
+
+```{python}
+# Turn of gradients for VGG16 parameters
+for param in VGG16.parameters():
+    param.requires_grad = False
+```
+
+```{python}
+# Modify last layer to have an output size of 5 (for our 5 classes)
+torch.manual_seed(314)
+VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
+                                    nn.Linear(512,5))
+```
+
+```{python}
+# View classifer section of VGG16
+VGG16.classifier
+```
+
+# Lightning
+
+```{python}
+class LightningVGG16(pl.LightningModule):
+
+    def __init__(self, hparams, train_set, val_set):
+        super(LightningVGG16, self).__init__()
+        self.vgg16 = VGG16
+        self.learning_rate = hparams.learning_rate
+        self.train_batch_size = hparams.train_batch_size
+        self.val_batch_size = hparams.val_batch_size
+        self.train_set = train_set
+        self.val_set = val_set
+        
+    def forward(self, x):
+        x = self.vgg16(x)
+        return x
+    
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.vgg16.classifier[6].parameters(), lr=self.learning_rate)
+    
+    def training_step(self, train_batch, batch_idx):
+        batch_corr = 0
+        x, y = train_batch
+        logits = self.forward(x)
+        loss =  F.cross_entropy(logits, y)
+        pred = logits.argmax(dim=1, keepdim=True)
+        batch_corr += pred.eq(y.view_as(pred)).sum().item()
+        acc = torch.tensor((batch_corr/self.train_batch_size) * 100)
+        train_logs = {'training Loss': loss, 'Training Accuracy': acc, 'Number Correct in Training Batch': batch_corr}
+        return {'loss': loss, 'Correct': batch_corr, 'acc': acc, 'log': train_logs}
+    
+    def validation_step(self, val_batch, batch_idx):
+        batch_corr = 0
+        x, y = val_batch
+        logits = self.forward(x)
+        loss = F.cross_entropy(logits, y)
+        pred = logits.argmax(dim=1, keepdim=True)
+        batch_corr += pred.eq(y.view_as(pred)).sum().item()
+        acc = torch.tensor((batch_corr/self.val_batch_size) * 100)
+        val_logs = {'Validation Loss': loss, 'Validation Accuracy': acc, 'Number Correct in Validation Batch': batch_corr}
+        return {'val_loss': loss, 'val_acc': acc, 'log': val_logs}
+        
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
+        tensorboard_logs = {'Average Validation Loss': avg_loss, 'Average Validation Accuracy': avg_acc}
+        return {'val_loss': avg_loss, 'val_acc': avg_acc, 'log': tensorboard_logs}
+        
+    def prepare_data(self):
+        self.prepped_trainset = SpecDataset(self.train_set)
+        self.prepped_valset = SpecDataset(self.val_set)
+        
+    def train_dataloader(self):
+        return DataLoader(self.prepped_trainset,batch_size=self.train_batch_size, shuffle=True)
+    
+    def val_dataloader(self):
+        return DataLoader(self.prepped_valset,batch_size=self.val_batch_size, shuffle=True)
+```
+
+```{python}
+# Hyperparameters
+hparams = Namespace(**{'learning_rate': 0.001, 'train_batch_size': 10,
+                       'val_batch_size': 10})
+```
+
+```{python}
+# Run training/validation of model
+model = LightningVGG16(hparams,train_set=train, val_set=val)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version='Subchallenge 1')
+trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+trainer.fit(model)
+```
+
+```{python}
+# Start tensorboard
+notebook.start('--logdir lightning_logs --host localhost --port 6266')
+```
+
+```{python}
+# Display tensorboard
+notebook.display(port=6266)
+```
+
+```{python}
+# List tensorboard instances
+#notebook.list()
+```
+
+```{python}
+#tensorboard kill
+# #!taskkill /pid 11468 /f
+```
+
+```{python}
+#torch.cuda.empty_cache()
+```
+
+# Predictions
+
+```{python}
+# Load submission template
+submission = pd.read_csv('Data/BEAT-PD_SC1_OnOff_Submission_Template.csv')
+submission.head()
+```
+
+```{python}
+# Predict and fill in submission template
+for measurement, id_ in testdataset:
+    output = model(torch.unsqueeze(TF.to_tensor(measurement).cuda(), dim=0))
+    prediction = output.argmax(dim=1, keepdim=True).item()
+    df_index = submission.index[submission['measurement_id'] == id_]
+    submission.prediction[df_index] = prediction
+```
+
+```{python}
+# View predictions
+pd.options.display.max_rows = 800
+submission.head(n=800)
+```
+
+```{python}
+#Save submission df to CSV
+submission.to_csv('Data/sc1_cis_submissions.csv', index=False)
+```
+
+```{python}
+class Foobar():
+    def __init__(self, string):
+        self.string = string
+        
+    def func1(self):
+        self.string = 'ahhhh'
+        
+    def func2(stuff):
+        stuff = 'ahhhh'
+        return string + stuff
+```
+
+```{python}
+foo = Foobar('sup')
+```
+
+```{python}
+foo.func1()
+```
+
+```{python}
+foo.string
+```
+
+```{python}
+foo.func2()
+```
+
+```{python}
+
+```
