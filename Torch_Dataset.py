@@ -31,10 +31,10 @@ class Torch_Dataset(data.Dataset):
         return spec, label
         
     def __getitem__(self, index):
-        spec = self.data_list[index][0]
+        measurement = list(self.data_list[index])
         label = self.data_list[index][self.label_index]
-        spec, label = self.torch_transform(spec, label)
-        return spec, label
+        measurement[0], label = self.torch_transform(measurement[0], label)
+        return measurement, label
     
     def __len__(self):
         return len(self.data_list)

@@ -17,7 +17,9 @@ class Training_Dataset():
     '''
     dataset_name: 'CIS' or 'REAL'
 
-    sort_by: Keys for dict, 'subject_id', 'on_off', 'dyskinesia', 'tremor'
+    sort_by: Keys for dict. 'subject_id', 'on_off', 'dyskinesia', or 'tremor'.
+
+    label_class: what class to make labels from. 'on_off', 'dyskinesia', or 'tremor'.
 
     train_ts_dir: Directory to training time series.
     
@@ -29,13 +31,14 @@ class Training_Dataset():
     
     combine_ancil = True: Combine training and ancillary data.
     '''
-    def __init__(self, dataset_name, sort_by,
-                 train_ts_dir, train_label_dir,
-                 ancil_ts_dir, ancil_label_dir, combine_ancil=True):
+    def __init__(self, dataset_name, sort_by, label_class,
+        train_ts_dir, train_label_dir,
+        ancil_ts_dir, ancil_label_dir, combine_ancil=True):
+        self.dataset_name = dataset_name
+        self.sort_by = sort_by
+        self.label_class = label_class
         self.train_ts_dir = train_ts_dir
         self.ancil_ts_dir = ancil_ts_dir
-        self.sort_by = sort_by
-        self.dataset_name = dataset_name
         self.combine_ancil = combine_ancil
         self.train_labels = pd.read_csv(train_label_dir).replace(np.nan, 'nan', regex=True)
         self.ancil_labels = pd.read_csv(ancil_label_dir).replace(np.nan, 'nan', regex=True)
@@ -44,6 +47,7 @@ class Training_Dataset():
         if self.combine_ancil:
             self.train_labels = pd.concat([self.train_labels, 
                                            self.ancil_labels]).reset_index(drop=True)
+        self.train_labels = self.train_labels[self.train_labels[label_class] != 'nan']
         self.classes = self.train_labels[self.sort_by].unique()
         self.create_dictionary()
         
