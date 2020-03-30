@@ -65,6 +65,10 @@ import random
 # %run -i LightningVGG16.py
 ```
 
+```{python}
+# %run -i Torch_Dataset.py
+```
+
 # Training Dataset
 
 ```{python}
@@ -83,7 +87,7 @@ import random
 # CIS config
 
 dataset_name = 'CIS'
-label_class = 'dyskinesia'
+label_class = 'on_off'
 sort_by = 'subject_id'
 train_ts_dir = 'Data/BEATPDchallenge/training_data-cispd/'
 train_label_dir = 'Data/BEATPDchallenge/data_labels-cispd/CIS-PD_Training_Data_IDs_Labels.csv'
@@ -103,7 +107,7 @@ dataset.data_dict.keys()
 ```
 
 ```{python}
-dataset.run_preprocessing(specific_key_dataset=1007)
+dataset.run_preprocessing(specific_key_dataset=1004)
 ```
 
 # Train Validation Split
@@ -176,10 +180,6 @@ trainer.fit(model)
 ```
 
 ```{python}
-dataset.data_list
-```
-
-```{python}
 # List tensorboard instances
 #notebook.list()
 ```
@@ -194,11 +194,15 @@ dataset.data_list
 ```
 
 ```{python}
-tst = Torch_Dataset(dataset.train_list)
+tst = Torch_Dataset(dataset.val_list, label_class=label_class)
 ```
 
 ```{python}
-# !ls
+tstloader = DataLoader(tst)
+```
+
+```{python}
+next(iter(tstloader))
 ```
 
 # Predictions
