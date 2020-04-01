@@ -51,9 +51,15 @@ class LightningVGG16(pl.LightningModule):
         acc = torch.tensor((batch_corr/self.val_batch_size) * 100)
         pred = pred.cpu().tolist()
         pred = sum(pred, [])
-        self.PredictionsDf = self.PredictionsDf.append(
-            pd.DataFrame({'measurement_id':list(x[1]),'subject_id':list(x[2].cpu().tolist()), 'actual':y.tolist(),
-                          'predicted':pred}),ignore_index=True)
+        try:
+            self.PredictionsDf = self.PredictionsDf.append(
+                pd.DataFrame({'measurement_id':list(x[1]),'subject_id':list(x[2].cpu().tolist()), 'actual':y.tolist(),
+                    'predicted':pred}),ignore_index=True)
+        except:
+            self.PredictionsDf = self.PredictionsDf.append(
+                pd.DataFrame({'measurement_id':list(x[1]),'subject_id':list(x[2]), 'actual':y.tolist(),
+                    'predicted':pred}),ignore_index=True)
+
         val_logs = {'Validation Loss': loss, 'Validation Accuracy': acc, 'Number Correct in Validation Batch': batch_corr}
         return {'val_loss': loss, 'val_acc': acc, 'log': val_logs}
         
