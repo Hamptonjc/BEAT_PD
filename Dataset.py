@@ -49,9 +49,6 @@ class Dataset:
         self.ancil_labels = pd.read_csv(ancil_label_dir).replace(np.nan, 'nan', regex=True)
         self.test_ts_dir = test_ts_dir
         self.test_data_id_dir = test_data_id_dir
-        self.data_list = []
-        self.test_data_list = []
-        self.nan_label_list = []
         self.issue_measurements = []
         if self.combine_ancil:
             self.train_labels = pd.concat([self.train_labels, 
@@ -104,7 +101,7 @@ class Dataset:
                                                                            self.train_ts_dir+
                                                                            'smartwatch_gyroscope/'+
                                                                            row.measurement_id+
-                                                                           '.csv').drop(columns='t')])
+                                                                           '.csv').drop(columns='t').to_numpy()])
                     except:#no gyroscope data
                         self.data_dict[row[self.sort_by]].append([pd.read_csv(
                             self.train_ts_dir + 'smartwatch_accelerometer/' + row.measurement_id +
@@ -136,7 +133,7 @@ class Dataset:
                                                                            self.train_ts_dir+
                                                                            'smartwatch_gyroscope/'+
                                                                            row.measurement_id+
-                                                                           '.csv').drop(columns='t')])
+                                                                           '.csv').drop(columns='t').to_numpy()])
                     except:#no gyroscope data
                         self.data_dict[row[self.sort_by]].append([pd.read_csv(
                             self.ancil_ts_dir + 'smartwatch_accelerometer/' + row.measurement_id +
@@ -171,7 +168,7 @@ class Dataset:
                         self.test_data_dict[row.subject_id].append([pd.read_csv(
                             self.test_ts_dir + 'smartwatch_accelerometer/' + row.measurement_id +
                             '.csv').drop(columns='t'),row.measurement_id,row.subject_id,
-                        pd.read_csv(self.train_ts_dir+'smartwatch_gyroscope/'+ row.measurement_id+'.csv').drop(columns='t')])
+                        pd.read_csv(self.train_ts_dir+'smartwatch_gyroscope/'+ row.measurement_id+'.csv').drop(columns='t').to_numpy()])
                     except:#no gyroscope data
                         self.test_data_dict[row.subject_id].append([pd.read_csv(
                             self.test_ts_dir + 'smartwatch_accelerometer/' + row.measurement_id +
@@ -268,6 +265,14 @@ class Dataset:
             raise NameError('Specify dataset name as REAL or CIS')
         if len(self.issue_measurements) > 0:
             print(f'Issue with {len(self.issue_measurements)} measurements.\n Enter self.issue_measuements for a list of them.')
+
+    def label_2_index(self):
+        if self.label_class == 'on_off':
+            self.label_index = 3
+        elif self.label_class == 'dyskinesia':
+            self.label_index = 4
+        elif self.label_class == 'tremor':
+            self.label_index = 5    
         
     
     def run_preprocessing(self, specific_key_dataset=None):
@@ -276,6 +281,8 @@ class Dataset:
 
         Use: For example, data dictionary is sorted by subject id. Select a specific subject to create a dataset to train with.
         '''
+        self.data_list = []
+        self.nan_label_list = []
         if specific_key_dataset:
             self.preprocessed_dict = {specific_key_dataset: self.data_dict[specific_key_dataset]}
         else:   
@@ -286,9 +293,10 @@ class Dataset:
             for i, tup in enumerate(tup_list):
                 tup_list[i][0] = self.standard_preprocessing(tup[0])
                 tup_list[i] = tuple(tup)
+        self.label_2_index()
         for key, tup_list in self.preprocessed_dict.items():
             for i, tup in enumerate(tup_list):
-                if tup[3] == 'nan' or tup[4] == 'nan' or tup[5] == 'nan':
+                if tup[self.label_index] == 'nan':
                     self.nan_label_list.append(tup)
                 else:
                     self.data_list.append(tup)
@@ -297,6 +305,7 @@ class Dataset:
         warnings.filterwarnings("default")
 
     def run_test_preprocessing(self, specific_key_dataset=None):
+        self.test_data_list = []
         if specific_key_dataset:
             self.preprocessed_test_dict = {specific_key_dataset: self.test_data_dict[specific_key_dataset]}
         else:   
