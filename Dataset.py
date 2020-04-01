@@ -13,7 +13,7 @@ from scipy.fftpack import fft
 from scipy.signal import get_window
 from numba import jit
 
-class Training_Dataset():
+class Dataset:
     '''
     dataset_name: 'CIS' or 'REAL'
 
@@ -23,17 +23,22 @@ class Training_Dataset():
 
     train_ts_dir: Directory to training time series.
     
-    train_label_dir: Directory to training labels.
+    train_label_dir: Path to training labels.
     
     ancil_ts_dir: Directory to ancillary time series.
     
-    ancil_label_dir: Directory to ancillary labels.
+    ancil_label_dir: Path to ancillary labels.
+
+    test_ts_dir(Optional): Directory to test time series
+
+    test_data_id_dir(Optional): Path to test data id CSV
     
     combine_ancil = True: Combine training and ancillary data.
     '''
     def __init__(self, dataset_name, sort_by, label_class,
-        train_ts_dir, train_label_dir,
-        ancil_ts_dir, ancil_label_dir, combine_ancil=True):
+        train_ts_dir, train_label_dir,ancil_ts_dir, ancil_label_dir,
+        test_ts_dir = None, test_data_id_dir = None, combine_ancil=True):
+
         self.dataset_name = dataset_name
         self.sort_by = sort_by
         self.label_class = label_class
@@ -42,13 +47,18 @@ class Training_Dataset():
         self.combine_ancil = combine_ancil
         self.train_labels = pd.read_csv(train_label_dir).replace(np.nan, 'nan', regex=True)
         self.ancil_labels = pd.read_csv(ancil_label_dir).replace(np.nan, 'nan', regex=True)
+        self.test_ts_dir = test_ts_dir
+        self.test_data_id_dir = test_data_id_dir
         self.data_list = []
+        self.test_data_list = []
         self.issue_measurements = []
         if self.combine_ancil:
             self.train_labels = pd.concat([self.train_labels, 
                                            self.ancil_labels]).reset_index(drop=True)
         self.train_labels = self.train_labels[self.train_labels[label_class] != 'nan']
         self.classes = self.train_labels[self.sort_by].unique()
+        if self.test_data_id_dir:
+            self.test_data_ids = pd.read_csv(self.test_data_id_dir)
         self.create_dictionary()
         
     def CIS_dictionary(self): # Create CIS dictionary
@@ -137,6 +147,36 @@ class Training_Dataset():
                     self.issue_measurements.append(row.measurement_id)
         return self.data_dict
 
+    def CIS_test_dictionary(self):
+        self.test_subjects = self.test_data_ids.subject_id.unique()
+        self.test_data_dict = {k : [] for k in self.test_subjects}
+        for index, row in tqdm(self.test_data_ids.iterrows(), 'Creating Test Dictionary',
+            total=self.test_data_ids.shape[0],position=0, leave=True):
+            self.test_data_dict[row.subject_id].append([pd.read_csv(
+            self.test_ts_dir + '/' + row.measurement_id +
+                    '.csv').drop(columns='Timestamp'),row.measurement_id,row.subject_id])
+
+    def REAL_test_dictionary(self):
+        self.test_subjects = self.test_data_ids.subject_id.unique()
+        self.test_data_dict = {k : [] for k in self.test_subjects}
+        for index, row in tqdm(self.test_data_ids.iterrows(), 'Creating Test Dictionary',
+                               total=self.test_data_ids.shape[0],position=0, leave=True):
+                try: # smartphone_accelerometer
+                    self.test_data_dict[row.subject_id].append([pd.read_csv(
+                        self.test_ts_dir + 'smartphone_accelerometer/' + row.measurement_id +
+                        '.csv').drop(columns='t'),row.measurement_id,row.subject_id])
+                except:#smartwatch_accelerometer
+                    try:#attach gyroscope data
+                        self.test_data_dict[row.subject_id].append([pd.read_csv(
+                            self.test_ts_dir + 'smartwatch_accelerometer/' + row.measurement_id +
+                            '.csv').drop(columns='t'),row.measurement_id,row.subject_id,
+                        pd.read_csv(self.train_ts_dir+'smartwatch_gyroscope/'+ row.measurement_id+'.csv').drop(columns='t')])
+                    except:#no gyroscope data
+                        self.test_data_dict[row.subject_id].append([pd.read_csv(
+                            self.test_ts_dir + 'smartwatch_accelerometer/' + row.measurement_id +
+                            '.csv').drop(columns='t'),row.measurement_id,row.subject_id])
+
+
     def pad_ts(self,ts):
         if ts.index[-1] < 60000:
             pad_size = 60000 - ts.index[-1]
@@ -216,9 +256,13 @@ class Training_Dataset():
         These nested lists were chosen over tuples since a mutable data type
         was needed to preprocess the data further.'''
         if self.dataset_name == 'CIS':
-            self.data_dict = self.CIS_dictionary()
+            self.CIS_dictionary()
+            if self.test_ts_dir and self.test_data_id_dir:
+                self.CIS_test_dictionary()
         elif self.dataset_name == 'REAL':
-            self.data_dict = self.REAL_dictionary()
+            self.REAL_dictionary()
+            if self.test_ts_dir and self.test_data_id_dir:
+                self.REAL_test_dictionary()
         else:
             raise NameError('Specify dataset name as REAL or CIS')
         print(f'Issue with {len(self.issue_measurements)} measurements',
@@ -244,6 +288,22 @@ class Training_Dataset():
         for key, tup_list in self.preprocessed_dict.items():
             for i, tup in enumerate(tup_list):
                 self.data_list.append(tup)
+        warnings.filterwarnings("default")
+
+    def run_test_preprocessing(self, specific_key_dataset=None):
+        if specific_key_dataset:
+            self.preprocessed_test_dict = {specific_key_dataset: self.test_data_dict[specific_key_dataset]}
+        else:   
+            self.preprocessed_test_dict = self.test_data_dict
+        warnings.filterwarnings("ignore")
+        for key, tup_list in tqdm(self.preprocessed_test_dict.items(),'Preprocessing Test Data',
+                                 total=len(self.preprocessed_test_dict),position=0, leave=True):
+            for i, tup in enumerate(tup_list):
+                tup_list[i][0] = self.standard_preprocessing(tup[0])
+                tup_list[i] = tuple(tup)
+        for key, tup_list in self.preprocessed_test_dict.items():
+            for i, tup in enumerate(tup_list):
+                self.test_data_list.append(tup)
         warnings.filterwarnings("default")
 
     def train_validation_split(self, val_proportion=0.2):
