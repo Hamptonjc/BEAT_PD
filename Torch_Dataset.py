@@ -34,6 +34,10 @@ class Torch_Dataset(data.Dataset):
         measurement = list(self.data_list[index])
         label = self.data_list[index][self.label_index]
         measurement[0], label = self.torch_transform(measurement[0], label)
+        try:
+        	del measurement[6]
+        except:
+        	pass
         return measurement, label
     
     def __len__(self):
