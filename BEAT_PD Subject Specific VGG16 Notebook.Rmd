@@ -15,11 +15,6 @@ jupyter:
 # BEAT-PD Notebook
 
 ```{python}
-# Disable autosave
-# #%autosave 0
-```
-
-```{python}
 # Imports
 import os
 import sys
@@ -193,11 +188,6 @@ notebook.start('--logdir lightning_logs --host localhost --port 6965')
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6964)
-```
-
-```{python}
 # Run training/validation of model
 model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
                        label_class=label_class)
@@ -284,7 +274,7 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 
 ```{python}
 # Display tensorboard
-notebook.display(port=6964)
+notebook.display(port=6965)
 ```
 
 ```{python}
@@ -350,7 +340,7 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 
 ```{python}
 # Display tensorboard
-notebook.display(port=6964)
+notebook.display(port=6965)
 ```
 
 ```{python}
@@ -416,7 +406,7 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 
 ```{python}
 # Display tensorboard
-notebook.display(port=6964)
+notebook.display(port=6965)
 ```
 
 ```{python}
@@ -482,7 +472,7 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 
 ```{python}
 # Display tensorboard
-notebook.display(port=6964)
+notebook.display(port=6965)
 ```
 
 ```{python}
@@ -548,7 +538,7 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 
 ```{python}
 # Display tensorboard
-notebook.display(port=6964)
+notebook.display(port=6965)
 ```
 
 ```{python}
@@ -614,7 +604,7 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 
 ```{python}
 # Display tensorboard
-notebook.display(port=6964)
+notebook.display(port=6965)
 ```
 
 ```{python}
@@ -680,7 +670,7 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 
 ```{python}
 # Display tensorboard
-notebook.display(port=6964)
+notebook.display(port=6965)
 ```
 
 ```{python}
