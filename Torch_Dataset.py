@@ -27,7 +27,7 @@ class Torch_Dataset(data.Dataset):
 
     def torch_transform(self, spec, label):
         spec = TF.to_tensor(spec)
-        label = torch.tensor(label, dtype=torch.long)
+        label = torch.tensor(label,	dtype=torch.long)
         return spec, label
         
     def __getitem__(self, index):

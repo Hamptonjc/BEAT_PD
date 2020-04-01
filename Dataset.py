@@ -51,12 +51,13 @@ class Dataset:
         self.test_data_id_dir = test_data_id_dir
         self.data_list = []
         self.test_data_list = []
+        self.nan_label_list = []
         self.issue_measurements = []
         if self.combine_ancil:
             self.train_labels = pd.concat([self.train_labels, 
                                            self.ancil_labels]).reset_index(drop=True)
-        self.train_labels = self.train_labels[self.train_labels[label_class] != 'nan']
         self.classes = self.train_labels[self.sort_by].unique()
+        #self.train_labels = self.train_labels[self.train_labels[self.label_class] != 'nan']
         if self.test_data_id_dir:
             self.test_data_ids = pd.read_csv(self.test_data_id_dir)
         self.create_dictionary()
@@ -265,8 +266,8 @@ class Dataset:
                 self.REAL_test_dictionary()
         else:
             raise NameError('Specify dataset name as REAL or CIS')
-        print(f'Issue with {len(self.issue_measurements)} measurements',
-              'enter self.issue_measuements for a list of them.')
+        if len(self.issue_measurements) > 0:
+            print(f'Issue with {len(self.issue_measurements)} measurements.\n Enter self.issue_measuements for a list of them.')
         
     
     def run_preprocessing(self, specific_key_dataset=None):
@@ -287,7 +288,12 @@ class Dataset:
                 tup_list[i] = tuple(tup)
         for key, tup_list in self.preprocessed_dict.items():
             for i, tup in enumerate(tup_list):
-                self.data_list.append(tup)
+                if tup[3] == 'nan' or tup[4] == 'nan' or tup[5] == 'nan':
+                    self.nan_label_list.append(tup)
+                else:
+                    self.data_list.append(tup)
+        if len(self.nan_label_list) > 0:
+            print(f'{len(self.nan_label_list)} samples with missing labels.\n Samples stored in self.nan_label_list')
         warnings.filterwarnings("default")
 
     def run_test_preprocessing(self, specific_key_dataset=None):

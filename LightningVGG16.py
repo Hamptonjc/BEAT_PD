@@ -66,6 +66,14 @@ class LightningVGG16(pl.LightningModule):
                             'Average Validation Accuracy': avg_acc, 'Average Validation BEAT_PD Score':avg_score}
         return {'val_loss': avg_loss, 'val_acc': avg_acc, 'log': tensorboard_logs}
         
+    # def data_collate(self,batch):
+    #     spec = (item[0][0] for item in batch)
+    #     id_ = (item[0][1] for item in batch)
+    #     subject_id = (item[0][2] for item in batch)
+    #     label = [item[1] for item in batch]
+    #     label = torch.LongTensor(label)
+    #     return spec, id_, subject_id, label
+
     def prepare_data(self):
         self.prepped_trainset = Torch_Dataset(self.train_list, label_class=self.label_class)
         self.prepped_valset = Torch_Dataset(self.val_list, label_class=self.label_class)
