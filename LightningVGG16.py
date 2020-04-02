@@ -11,11 +11,39 @@ from torchvision import transforms, models
 from torch.utils import data
 from torch.utils.data import DataLoader
 
+
+torch.manual_seed(314)
+CIS_VGG16 = models.vgg16(pretrained=True)
+for param in CIS_VGG16.parameters():
+    param.requires_grad = False
+CIS_VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
+                                    nn.Linear(512,5))
+
+torch.manual_seed(101)
+REAL_VGG16 = models.vgg16(pretrained=True)
+for param in REAL_VGG16.parameters():
+    param.requires_grad = False
+REAL_VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
+                                    nn.Linear(512,2))
+
+
 class LightningVGG16(pl.LightningModule):
 
-    def __init__(self, hparams, train_list, val_list, label_class):
+    '''
+    dataset_name: 'CIS' or 'REAL'
+
+    hparams: Namespace(**{'learning_rate':_ , 'train_batch_size':_ , 'val_batch_size':_ })
+
+    train_list: python list of preprocessed training data from Dataset class.
+
+    val_list: python list of preprocessed validation data from Dataset class.
+
+    Label_class: 'on_off', 'dyskinesia', or 'tremor'
+
+    '''
+
+    def __init__(self, dataset_name, hparams, train_list, val_list, label_class):
         super(LightningVGG16, self).__init__()
-        self.vgg16 = VGG16
         self.learning_rate = hparams.learning_rate
         self.train_batch_size = hparams.train_batch_size
         self.val_batch_size = hparams.val_batch_size
@@ -23,6 +51,14 @@ class LightningVGG16(pl.LightningModule):
         self.val_list = val_list
         self.label_class = label_class
         self.PredictionsDf = pd.DataFrame(columns=['measurement_id', 'subject_id', 'actual','predicted'])
+        if dataset_name == 'CIS':
+            self.vgg16 = CIS_VGG16
+
+        elif dataset_name == 'REAL':
+            self.vgg16 = REAL_VGG16
+        else:
+            raise TypeError('Specifiy CIS or REAL for dataset_name')
+
     def forward(self, x):
         x = self.vgg16(x)
         return x
