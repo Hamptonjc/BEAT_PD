@@ -12,7 +12,7 @@ jupyter:
     name: python3
 ---
 
-# BEAT-PD Notebook
+# BEAT-PD SC1 Subject Specific Models Notebook
 
 ```{python}
 # Imports
@@ -53,33 +53,7 @@ import random
 torch.cuda.empty_cache()
 ```
 
-# Edit VGG16
-
-```{python}
-# Load instance of VGG16
-torch.manual_seed(314)
-VGG16 = models.vgg16(pretrained=True)
-```
-
-```{python}
-# View final classifer section
-VGG16.classifier[6]
-```
-
-```{python}
-# Turn of gradients for VGG16 parameters
-for param in VGG16.parameters():
-    param.requires_grad = False
-```
-
-```{python}
-# Modify last layer to have an output size of 5 (for our 5 classes)
-torch.manual_seed(314)
-VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
-                                    nn.Linear(512,5))
-```
-
-# Identify Test Subjects
+# Identifying Sub Challenge 1 Test Subjects
 
 ```{python}
 cis_tst_id = pd.read_csv('Data/BEATPDchallenge/CIS-PD_Test_Data_IDs.csv')
@@ -156,11 +130,15 @@ dataset.test_data_dict.keys()
 # Subject 1004 Model
 
 ```{python}
-dataset.run_preprocessing(specific_key_dataset=1004)
+subject_id = 1004
 ```
 
 ```{python}
-dataset.run_test_preprocessing(specific_key_dataset=1004)
+dataset.run_preprocessing(specific_key_dataset=subject_id)
+```
+
+```{python}
+dataset.run_test_preprocessing(specific_key_dataset=subject_id)
 ```
 
 ## Train Validation Split
@@ -184,14 +162,18 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 
 ```{python}
 # Start tensorboard
-notebook.start('--logdir lightning_logs --host localhost --port 6965')
+notebook.start('--logdir lightning_logs --host localhost --port 7001')
+```
+
+```{python}
+notebook.display(port=7001)
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version='subject_1004 on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -223,12 +205,7 @@ for spec, id_, subject in dataset.test_data_list:
 
 ```{python}
 # View predictions
-tst_sc1
-```
-
-```{python}
-# #Save submission df to CSV
-# submission.to_csv('Data/sc1_cis_submissions.csv', index=False)
+tst_sc1.head(n3)
 ```
 
 ```{python}
@@ -273,15 +250,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -339,15 +311,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -405,15 +372,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -471,15 +433,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams, val_list=dataset.val_list,
                        label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -537,15 +494,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -603,15 +555,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -669,15 +616,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -735,15 +677,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -801,15 +738,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -867,15 +799,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -933,15 +860,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -999,15 +921,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1065,14 +982,9 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
+model = LightningVGG16(dataset_name=dataset_name,hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
 logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
@@ -1131,15 +1043,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=dataset.train_list, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1153,32 +1060,6 @@ for spec, id_, subject in dataset.test_data_list:
     prediction = output.argmax(dim=1, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
-```
-
-# Edit VGG16 For REAL Predictions
-
-```{python}
-# Load instance of VGG16
-torch.manual_seed(314)
-VGG16 = models.vgg16(pretrained=True)
-```
-
-```{python}
-# View final classifer section
-VGG16.classifier[6]
-```
-
-```{python}
-# Turn of gradients for VGG16 parameters
-for param in VGG16.parameters():
-    param.requires_grad = False
-```
-
-```{python}
-# Modify last layer to have an output size of 5 (for our 5 classes)
-torch.manual_seed(314)
-VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
-                                    nn.Linear(512,2))
 ```
 
 # Create REAL Dataset
@@ -1254,15 +1135,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=REALdataset.train_list, val_list=REALdataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1316,15 +1192,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=REALdataset.train_list, val_list=REALdataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1382,15 +1253,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=REALdataset.train_list, val_list=REALdataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1448,15 +1314,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=REALdataset.train_list, val_list=REALdataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1514,15 +1375,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=REALdataset.train_list, val_list=REALdataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1580,15 +1436,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=REALdataset.train_list, val_list=REALdataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1646,15 +1497,10 @@ hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
 ```
 
 ```{python}
-# Display tensorboard
-notebook.display(port=6965)
-```
-
-```{python}
 # Run training/validation of model
-model = LightningVGG16(hparams,train_list=REALdataset.train_list, val_list=REALdataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_on_off')
+model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
 trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
 trainer.fit(model)
 ```
@@ -1682,10 +1528,10 @@ tst_sc1.prediction = tst_sc1.prediction.astype(int)
 
 ```{python}
 #Save submission df to CSV
-tst_sc1.to_csv('Data/on_off_submission2.csv', index=False)
+#tst_sc1.to_csv('Data/on_off_submission2.csv', index=False)
 ```
 
 ```{python}
 # Check to see if csv saved correctly
-pd.read_csv('Data/on_off_submission2.csv').head()
+#pd.read_csv('Data/on_off_submission2.csv').head()
 ```
