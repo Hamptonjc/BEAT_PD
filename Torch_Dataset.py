@@ -34,7 +34,7 @@ class Torch_Dataset(data.Dataset):
         measurement = list(self.data_list[index])
         label = self.data_list[index][self.label_index]
         measurement[0], label = self.torch_transform(measurement[0], label)
-        try:
+        try:#drop gyro (b/c giving issues)
         	del measurement[6]
         except:
         	pass
