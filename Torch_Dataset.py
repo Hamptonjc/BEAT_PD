@@ -29,16 +29,23 @@ class Torch_Dataset(data.Dataset):
         spec = TF.to_tensor(spec)
         label = torch.tensor(label,	dtype=torch.long)
         return spec, label
+
+    def ts_transform(self, ts):
+        ts = torch.tensor(dataset.data_list[0][6]).type('torch.FloatTensor').view(ts.shape[0], -1)
+        return ts
+
         
     def __getitem__(self, index):
         measurement = list(self.data_list[index])
         label = self.data_list[index][self.label_index]
         measurement[0], label = self.torch_transform(measurement[0], label)
-        try:#drop gyro (b/c giving issues)
-        	del measurement[6]
+        try:
+            measurement[6] = self.ts_transform(measurement[6])
         except:
-        	pass
+            pass
         return measurement, label
     
     def __len__(self):
         return len(self.data_list)
+
+
