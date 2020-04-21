@@ -343,7 +343,7 @@ class Dataset:
         Use: For example, data dictionary is sorted by subject id. Select a specific subject to create a dataset to train with.
         '''
         self.data_list = []
-        self.nan_label_list = []
+        self.psuedo_label_count = 0
         if specific_key_dataset:
             self.ensemble_preprocessed_dict = {specific_key_dataset: self.data_dict[specific_key_dataset]}
         else:   
@@ -354,17 +354,33 @@ class Dataset:
             for i, tup in enumerate(tup_list):
                 tup_list[i].append(self.LSTM_preprocessing(tup[0]))
                 tup_list[i][0] = self.spectrogram_preprocessing(tup[0])
-                tup_list[i] = tuple(tup)
+                #tup_list[i] = tuple(tup)
         self.label_2_index()
         for key, tup_list in self.ensemble_preprocessed_dict.items():
             for i, tup in enumerate(tup_list):
                 if tup[self.label_index] == 'nan':
-                    self.nan_label_list.append(tup)
+                    tup[self.label_index] = self.avg_label(self.ensemble_preprocessed_dict, key, self.label_index)
+                    self.psuedo_label_count += 1
+                    self.data_list.append(tup)
                 else:
                     self.data_list.append(tup)
-        if len(self.nan_label_list) > 0:
-            print(f'{len(self.nan_label_list)} samples with missing labels.\n Samples stored in self.nan_label_list')
+        if self.psuedo_label_count > 0:
+            print(f'{self.psuedo_label_count} samples with missing labels.\n Labels were replaced with keys label mean.')
         warnings.filterwarnings("default")
+
+    def avg_label(self, sample_dict, key, label_index):
+        self.label_sum = 0
+        for tup in sample_dict[key]:
+            try:
+                self.label_sum += tup[label_index]
+            except:
+                pass
+        return self.label_sum // len(sample_dict[key])
+
+
+
+
+
 
 
 
