@@ -85,10 +85,10 @@ trainer.fit(model)
 
 ```{python}
 # Start tensorboard
-notebook.start('--logdir lightning_logs --host localhost --port 7003')
+notebook.start('--logdir lightning_logs --host localhost --port 7004')
 ```
 
 ```{python}
 # Start tensorboard
-notebook.display(port=7003)
+notebook.display(port=7004)
 ```
