@@ -308,7 +308,6 @@ class Dataset:
             for i, tup in enumerate(tup_list):
                 tup_list[i].append(self.LSTM_preprocessing(tup[0]))
                 tup_list[i][0] = self.spectrogram_preprocessing(tup[0])
-                #tup_list[i] = tuple(tup)
         self.label_2_index()
         for key, tup_list in self.ensemble_preprocessed_dict.items():
             for i, tup in enumerate(tup_list):
@@ -335,7 +334,6 @@ class Dataset:
             for i, tup in enumerate(tup_list):
                 tup_list[i].append(self.LSTM_preprocessing(tup[0]))
                 tup_list[i][0] = self.spectrogram_preprocessing(tup[0])
-                #tup_list[i] = tuple(tup)
         for key, tup_list in self.preprocessed_test_dict.items():
             for i, tup in enumerate(tup_list):
                 self.test_data_list.append(tup)
