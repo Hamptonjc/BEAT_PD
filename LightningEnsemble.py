@@ -28,7 +28,7 @@ REAL_VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
 
 
 
-class LightningVGG16(pl.LightningModule):
+class LightningEnsemble(pl.LightningModule):
 
     '''
     dataset_name: 'CIS' or 'REAL'
@@ -44,7 +44,7 @@ class LightningVGG16(pl.LightningModule):
     '''
 
     def __init__(self, dataset_name, hparams, train_list, val_list, label_class):
-        super(LightningVGG16, self).__init__()
+        super(LightningEnsemble, self).__init__()
         self.learning_rate = hparams.learning_rate
         self.train_batch_size = hparams.train_batch_size
         self.val_batch_size = hparams.val_batch_size
@@ -65,9 +65,14 @@ class LightningVGG16(pl.LightningModule):
             raise TypeError('Specifiy CIS or REAL for dataset_name')
 
     def forward(self, x):
-        spec = self.vgg16(x[0])
-        ts = self.lstm(x[6].permute(1,0,2).type('torch.FloatTensor'))
-        output = self.classifier(torch.cat([spec.view(-1), ts]))
+        try: #Training/validation
+            spec = self.vgg16(x[0])
+            ts = self.lstm(x[6].permute(1,0,2).type('torch.FloatTensor'))
+            output = self.classifier(torch.cat([spec.view(-1), ts]))
+        except: #Predicting
+            spec = self.vgg16(x[0])
+            ts = self.lstm(x[1].type('torch.FloatTensor'))
+            output = self.classifier(torch.cat([spec.view(-1), ts]))
         return output
     
     def configure_optimizers(self):
