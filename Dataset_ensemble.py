@@ -182,8 +182,8 @@ class Dataset:
             post_pad_size = pad_size//2
             pre_pad = pd.DataFrame(np.zeros((pre_pad_size, 3)),columns=['X', 'Y', 'Z'])
             post_pad = pd.DataFrame(np.zeros((post_pad_size, 3)),columns=['X', 'Y', 'Z'])
-            measurement = pd.concat([ts, post_pad]).reset_index(drop=True)
-            measurement = pd.concat([pre_pad, ts]).reset_index(drop=True)
+            ts = pd.concat([ts, post_pad]).reset_index(drop=True)
+            ts = pd.concat([pre_pad, ts]).reset_index(drop=True)
         elif ts.index[-1] > 60000:
             ts = ts[:60001]
         return ts
@@ -274,52 +274,6 @@ class Dataset:
         elif self.label_class == 'tremor':
             self.label_index = 5    
         
-    
-    def run_preprocessing(self, specific_key_dataset=None):
-        '''
-        specific_key_dataset (OPTIONAL): Pick a specific key to preprocess and create a torch dataset with.
-
-        Use: For example, data dictionary is sorted by subject id. Select a specific subject to create a dataset to train with.
-        '''
-        self.data_list = []
-        self.nan_label_list = []
-        if specific_key_dataset:
-            self.preprocessed_dict = {specific_key_dataset: self.data_dict[specific_key_dataset]}
-        else:   
-            self.preprocessed_dict = self.data_dict
-        warnings.filterwarnings("ignore")
-        for key, tup_list in tqdm(self.preprocessed_dict.items(),'Preprocessing Data',
-                                 total=len(self.preprocessed_dict),position=0, leave=True):
-            for i, tup in enumerate(tup_list):
-                tup_list[i][0] = self.spectrogram_preprocessing(tup[0])
-                tup_list[i] = tuple(tup)
-        self.label_2_index()
-        for key, tup_list in self.preprocessed_dict.items():
-            for i, tup in enumerate(tup_list):
-                if tup[self.label_index] == 'nan':
-                    self.nan_label_list.append(tup)
-                else:
-                    self.data_list.append(tup)
-        if len(self.nan_label_list) > 0:
-            print(f'{len(self.nan_label_list)} samples with missing labels.\n Samples stored in self.nan_label_list')
-        warnings.filterwarnings("default")
-
-    def run_test_preprocessing(self, specific_key_dataset=None):
-        self.test_data_list = []
-        if specific_key_dataset:
-            self.preprocessed_test_dict = {specific_key_dataset: self.test_data_dict[specific_key_dataset]}
-        else:   
-            self.preprocessed_test_dict = self.test_data_dict
-        warnings.filterwarnings("ignore")
-        for key, tup_list in tqdm(self.preprocessed_test_dict.items(),'Preprocessing Test Data',
-                                 total=len(self.preprocessed_test_dict),position=0, leave=True):
-            for i, tup in enumerate(tup_list):
-                tup_list[i][0] = self.spectrogram_preprocessing(tup[0])
-                tup_list[i] = tuple(tup)
-        for key, tup_list in self.preprocessed_test_dict.items():
-            for i, tup in enumerate(tup_list):
-                self.test_data_list.append(tup)
-        warnings.filterwarnings("default")
 
     def train_validation_split(self, val_proportion=0.2):
         random.shuffle(self.data_list)
@@ -336,7 +290,7 @@ class Dataset:
         return ts.to_numpy()
 
 
-    def run_ensemble_preprocessing(self, specific_key_dataset=None):
+    def run_preprocessing(self, specific_key_dataset=None):
         '''
         specific_key_dataset (OPTIONAL): Pick a specific key to preprocess and create a torch dataset with.
 
@@ -368,6 +322,26 @@ class Dataset:
             print(f'{self.psuedo_label_count} samples with missing labels.\n Labels were replaced with keys label mean.')
         warnings.filterwarnings("default")
 
+
+    def run_test_preprocessing(self, specific_key_dataset=None):
+        self.test_data_list = []
+        if specific_key_dataset:
+            self.preprocessed_test_dict = {specific_key_dataset: self.test_data_dict[specific_key_dataset]}
+        else:   
+            self.preprocessed_test_dict = self.test_data_dict
+        warnings.filterwarnings("ignore")
+        for key, tup_list in tqdm(self.preprocessed_test_dict.items(),'Preprocessing Test Data',
+                                 total=len(self.preprocessed_test_dict),position=0, leave=True):
+            for i, tup in enumerate(tup_list):
+                tup_list[i].append(self.LSTM_preprocessing(tup[0]))
+                tup_list[i][0] = self.spectrogram_preprocessing(tup[0])
+                #tup_list[i] = tuple(tup)
+        for key, tup_list in self.preprocessed_test_dict.items():
+            for i, tup in enumerate(tup_list):
+                self.test_data_list.append(tup)
+        warnings.filterwarnings("default")
+
+
     def avg_label(self, sample_dict, key, label_index):
         self.label_sum = 0
         for tup in sample_dict[key]:
@@ -376,8 +350,6 @@ class Dataset:
             except:
                 pass
         return self.label_sum // len(sample_dict[key])
-
-
 
 
 
