@@ -76,13 +76,9 @@ class LightningEnsemble(pl.LightningModule):
         return output
     
     def configure_optimizers(self):
-        vgg_optim = torch.optim.Adam(list(self.vgg16.classifier[6].parameters())+ list(self.lstm.parameters()) +
+        optim = torch.optim.Adam(list(self.vgg16.classifier[6].parameters())+ list(self.lstm.parameters()) +
             list(self.classifier.parameters()), lr=self.learning_rate)
-        #lstm_optim = torch.optim.Adam(self.lstm.parameters(), lr = self.learning_rate)
-        #classifier_optim = torch.optim.Adam(self.classifier.parameters(), lr = self.learning_rate)
-        #return [vgg_optim, lstm_optim, classifier_optim]
-    #list(fc1.parameters()) + list(fc2.parameters())
-        return vgg_optim
+        return optim
 
     def training_step(self, train_batch, batch_idx):
         batch_corr = 0
