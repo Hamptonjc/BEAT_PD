@@ -43,10 +43,11 @@ import random
 
 ```{python}
 # Run .py files
-# %run -i Dataset.py
+# %run -i Dataset_ensemble.py
 # %run -i Torch_Dataset.py
+# %run -i BEATPD_LSTM.py
 # %run -i EvalUtilities.py
-# %run -i LightningVGG16.py
+# %run -i LightningEnsemble.py
 ```
 
 ```{python}
@@ -127,6 +128,19 @@ dataset.data_dict.keys()
 dataset.test_data_dict.keys()
 ```
 
+## Model's Settings
+
+```{python}
+model_name = "Ensemble_v1"
+checkpoint_callback = False
+early_stop_callback=True 
+max_epochs=10
+gpus=1
+learning_rate = 0.0001
+train_batch_size = 1  #issue with batch size > 1, concat output into final classifier is batch_size*10
+val_batch_size = 1
+```
+
 # Subject 1004 Model
 
 ```{python}
@@ -156,25 +170,26 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Start tensorboard
-notebook.start('--logdir lightning_logs --host localhost --port 7001')
+notebook.start(f'--logdir lightning_logs --host localhost --port 1334')
 ```
 
 ```{python}
-notebook.display(port=7001)
+notebook.display(port=1334)
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -196,16 +211,17 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
 
 ```{python}
 # View predictions
-tst_sc1.head(n3)
+tst_sc1.head()
 ```
 
 ```{python}
@@ -245,16 +261,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -262,9 +279,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -306,16 +324,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -323,9 +342,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -367,16 +387,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -384,9 +405,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -428,16 +450,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams, val_list=dataset.val_list,
-                       label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+                       val_list=dataset.val_list,label_class=label_class)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -445,9 +468,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -489,16 +513,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -506,9 +531,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -550,16 +576,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -567,9 +594,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -611,16 +639,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -628,9 +657,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -672,16 +702,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -689,9 +720,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -733,17 +765,18 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
-# Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
-                       val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
-trainer.fit(model)
+# Predict and fill in submission template
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
+    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
+    tst_sc1.prediction[df_index] = prediction
 ```
 
 ## Make Predictions
@@ -794,16 +827,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -811,9 +845,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -855,16 +890,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -872,9 +908,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -916,16 +953,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -933,9 +971,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -977,16 +1016,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id} on_off')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -994,9 +1034,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -1038,16 +1079,17 @@ print('Validation size:',len(dataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -1055,9 +1097,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in dataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -1130,16 +1173,17 @@ print('Validation size:',len(REALdataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -1147,9 +1191,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in REALdataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -1187,16 +1232,17 @@ print('Validation size:',len(REALdataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -1204,9 +1250,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in REALdataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -1248,16 +1295,17 @@ print('Validation size:',len(REALdataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -1265,9 +1313,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in REALdataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -1309,16 +1358,17 @@ print('Validation size:',len(REALdataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -1326,9 +1376,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in REALdataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -1370,16 +1421,17 @@ print('Validation size:',len(REALdataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -1387,9 +1439,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in REALdataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -1431,16 +1484,17 @@ print('Validation size:',len(REALdataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -1448,9 +1502,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in REALdataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
@@ -1492,16 +1547,17 @@ print('Validation size:',len(REALdataset.val_list))
 
 ```{python}
 # Hyperparameters
-hparams = Namespace(**{'learning_rate': 0.0001, 'train_batch_size': 1,
-                       'val_batch_size': 1})
+hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
+                       'val_batch_size': val_batch_size})
 ```
 
 ```{python}
 # Run training/validation of model
-model = LightningVGG16(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
+model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
                        val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name="VGG16", version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=True, max_epochs=10, gpus=1, logger=logger)
+logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
+trainer = pl.Trainer(early_stop_callback=early_stop_callback,
+                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
 trainer.fit(model)
 ```
 
@@ -1509,9 +1565,10 @@ trainer.fit(model)
 
 ```{python}
 # Predict and fill in submission template
-for spec, id_, subject in REALdataset.test_data_list:
-    output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
-    prediction = output.argmax(dim=1, keepdim=True).item()
+for spec, id_, subject, ts in dataset.test_data_list:
+    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
+                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
+    prediction = output.argmax(dim=0, keepdim=True).item()
     df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
     tst_sc1.prediction[df_index] = prediction
 ```
