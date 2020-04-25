@@ -12,7 +12,7 @@ jupyter:
     name: python3
 ---
 
-# BEAT-PD SC1 Subject Specific Models Notebook
+# BEAT-PD SC2 Subject Specific Models Notebook
 
 ```{python}
 # Imports
@@ -54,7 +54,7 @@ import random
 torch.cuda.empty_cache()
 ```
 
-# Identifying Sub Challenge 1 Test Subjects
+# Identifying Sub Challenge 2 Test Subjects
 
 ```{python}
 cis_tst_id = pd.read_csv('Data/BEATPDchallenge/CIS-PD_Test_Data_IDs.csv')
@@ -65,22 +65,22 @@ real_tst_id = pd.read_csv('Data/BEATPDchallenge/REAL-PD_Test_Data_IDs.csv')
 ```
 
 ```{python}
-tst_sc1 = pd.read_csv('Data/BEATPDchallenge/BEAT-PD_SC1_OnOff_Submission_Template.csv')
+tst_sc2 = pd.read_csv('Data/BEATPDchallenge/BEAT-PD_SC2_Dyskinesia_Submission_Template.csv')
 ```
 
 ```{python}
-tst_sc1['subject_id'] = np.nan
+tst_sc2['subject_id'] = np.nan
 ```
 
 ```{python}
-for idx1, row1 in tst_sc1.iterrows():
+for idx1, row1 in tst_sc2.iterrows():
     for idx2, row2 in pd.concat([cis_tst_id,real_tst_id]).reset_index(drop=True).iterrows():
         if row1.measurement_id == row2.measurement_id:
-            tst_sc1.subject_id[idx1] = row2.subject_id
+            tst_sc2.subject_id[idx1] = row2.subject_id
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Create CIS Dataset
@@ -103,7 +103,7 @@ for idx1, row1 in tst_sc1.iterrows():
 ############### CIS config ###############
 
 dataset_name = 'CIS'
-label_class = 'on_off'
+label_class = 'dyskinesia'
 sort_by = 'subject_id'
 train_ts_dir = 'Data/BEATPDchallenge/training_data-cispd/'
 train_label_dir = 'Data/BEATPDchallenge/data_labels-cispd/CIS-PD_Training_Data_IDs_Labels.csv'
@@ -215,80 +215,17 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
 # View predictions
-tst_sc1.head()
+tst_sc2.head()
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
-```
-
-# Subject 1006 Model
-
-```{python}
-torch.cuda.empty_cache()
-```
-
-```{python}
-subject_id = 1006
-```
-
-```{python}
-dataset.run_preprocessing(specific_key_dataset=subject_id)
-```
-
-```{python}
-dataset.run_test_preprocessing(specific_key_dataset=subject_id)
-```
-
-## Train Validation Split
-
-```{python}
-dataset.train_validation_split(val_proportion=0.2)
-```
-
-```{python}
-print('Training size:',len(dataset.train_list))
-print('Validation size:',len(dataset.val_list))
-```
-
-## Run Training/Validation
-
-```{python}
-# Hyperparameters
-hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
-                       'val_batch_size': val_batch_size})
-```
-
-```{python}
-# Run training/validation of model
-model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
-                       val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=early_stop_callback,
-                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
-trainer.fit(model)
-```
-
-## Make Predictions
-
-```{python}
-# Predict and fill in submission template
-for spec, id_, subject, ts in dataset.test_data_list:
-    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
-                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
-    prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
-```
-
-```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1007 Model
@@ -346,12 +283,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1019 Model
@@ -409,75 +346,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
-```
-
-# Subject 1020 Model
-
-```{python}
-torch.cuda.empty_cache()
-```
-
-```{python}
-subject_id = 1020
-```
-
-```{python}
-dataset.run_preprocessing(specific_key_dataset=subject_id)
-```
-
-```{python}
-dataset.run_test_preprocessing(specific_key_dataset=subject_id)
-```
-
-## Train Validation Split
-
-```{python}
-dataset.train_validation_split(val_proportion=0.2)
-```
-
-```{python}
-print('Training size:',len(dataset.train_list))
-print('Validation size:',len(dataset.val_list))
-```
-
-## Run Training/Validation
-
-```{python}
-# Hyperparameters
-hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
-                       'val_batch_size': val_batch_size})
-```
-
-```{python}
-# Run training/validation of model
-model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
-                       val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=early_stop_callback,
-                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
-trainer.fit(model)
-```
-
-## Make Predictions
-
-```{python}
-# Predict and fill in submission template
-for spec, id_, subject, ts in dataset.test_data_list:
-    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
-                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
-    prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
-```
-
-```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1023 Model
@@ -535,75 +409,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
-```
-
-# Subject 1032 Model
-
-```{python}
-torch.cuda.empty_cache()
-```
-
-```{python}
-subject_id = 1032
-```
-
-```{python}
-dataset.run_preprocessing(specific_key_dataset=subject_id)
-```
-
-```{python}
-dataset.run_test_preprocessing(specific_key_dataset=subject_id)
-```
-
-## Train Validation Split
-
-```{python}
-dataset.train_validation_split(val_proportion=0.2)
-```
-
-```{python}
-print('Training size:',len(dataset.train_list))
-print('Validation size:',len(dataset.val_list))
-```
-
-## Run Training/Validation
-
-```{python}
-# Hyperparameters
-hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
-                       'val_batch_size': val_batch_size})
-```
-
-```{python}
-# Run training/validation of model
-model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
-                       val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=early_stop_callback,
-                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
-trainer.fit(model)
-```
-
-## Make Predictions
-
-```{python}
-# Predict and fill in submission template
-for spec, id_, subject, ts in dataset.test_data_list:
-    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
-                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
-    prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
-```
-
-```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1034 Model
@@ -661,12 +472,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1038 Model
@@ -724,12 +535,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1039 Model
@@ -786,12 +597,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
 for spec, id_, subject in dataset.test_data_list:
     output = model(torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0))
     prediction = output.argmax(dim=1, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1043 Model
@@ -849,12 +660,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1044 Model
@@ -912,12 +723,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1048 Model
@@ -975,12 +786,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
+ tst_sc2.subject_id.unique()
 ```
 
 # Subject 1049 Model
@@ -1038,71 +849,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
- tst_sc1.subject_id.unique()
-```
-
-# Subject 1051 Model
-
-```{python}
-torch.cuda.empty_cache()
-```
-
-```{python}
-subject_id = 1051
-```
-
-```{python}
-dataset.run_preprocessing(specific_key_dataset=subject_id)
-```
-
-```{python}
-dataset.run_test_preprocessing(specific_key_dataset=subject_id)
-```
-
-## Train Validation Split
-
-```{python}
-dataset.train_validation_split(val_proportion=0.2)
-```
-
-```{python}
-print('Training size:',len(dataset.train_list))
-print('Validation size:',len(dataset.val_list))
-```
-
-## Run Training/Validation
-
-```{python}
-# Hyperparameters
-hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
-                       'val_batch_size': val_batch_size})
-```
-
-```{python}
-# Run training/validation of model
-model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
-                       val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=early_stop_callback,
-                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
-trainer.fit(model)
-```
-
-## Make Predictions
-
-```{python}
-# Predict and fill in submission template
-for spec, id_, subject, ts in dataset.test_data_list:
-    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
-                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
-    prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+tst_sc2.subject_id.unique()
 ```
 
 # Create REAL Dataset
@@ -1111,7 +863,7 @@ for spec, id_, subject, ts in dataset.test_data_list:
 ############### REAL config ###############
 
 dataset_name = 'REAL'
-label_class = 'on_off'
+label_class = 'dyskinesia'
 sort_by = 'subject_id'
 train_ts_dir = 'Data/BEATPDchallenge/BeatPDRealPDupdated/real-pd.training_data_updated/training_data/'
 train_label_dir = 'Data/BEATPDchallenge/data_labels-realpd/REAL-PD_Training_Data_IDs_Labels.csv'
@@ -1137,7 +889,7 @@ REALdataset.test_data_dict.keys()
 ```
 
 ```{python}
-tst_sc1.subject_id.unique()
+tst_sc2.subject_id.unique()
 ```
 
 # Subject hbv013 Model
@@ -1195,18 +947,18 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
-tst_sc1.subject_id.unique()
+tst_sc2.subject_id.unique()
 ```
 
-# Subject hbv038 Model
+# Subject hbv017 Model
 
 ```{python}
-subject_id = 'hbv038'
+subject_id = 'hbv017'
 ```
 
 ```{python}
@@ -1254,22 +1006,22 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
-tst_sc1.subject_id.unique()
+tst_sc2.subject_id.unique()
 ```
 
-# Subject hbv051 Model
+# Subject hbv054 Model
 
 ```{python}
 torch.cuda.empty_cache()
 ```
 
 ```{python}
-subject_id = 'hbv051'
+subject_id = 'hbv054'
 ```
 
 ```{python}
@@ -1317,22 +1069,22 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
-tst_sc1.subject_id.unique()
+tst_sc2.subject_id.unique()
 ```
 
-# Subject hbv077 Model
+# Subject hbv018 Model
 
 ```{python}
 torch.cuda.empty_cache()
 ```
 
 ```{python}
-subject_id = 'hbv077'
+subject_id = 'hbv018'
 ```
 
 ```{python}
@@ -1380,75 +1132,12 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
-tst_sc1.subject_id.unique()
-```
-
-# Subject hbv014 Model
-
-```{python}
-torch.cuda.empty_cache()
-```
-
-```{python}
-subject_id = 'hbv014'
-```
-
-```{python}
-REALdataset.run_preprocessing(specific_key_dataset=subject_id)
-```
-
-```{python}
-REALdataset.run_test_preprocessing(specific_key_dataset=subject_id)
-```
-
-## Train Validation Split
-
-```{python}
-REALdataset.train_validation_split(val_proportion=0.2)
-```
-
-```{python}
-print('Training size:',len(REALdataset.train_list))
-print('Validation size:',len(REALdataset.val_list))
-```
-
-## Run Training/Validation
-
-```{python}
-# Hyperparameters
-hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
-                       'val_batch_size': val_batch_size})
-```
-
-```{python}
-# Run training/validation of model
-model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
-                       val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=early_stop_callback,
-                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
-trainer.fit(model)
-```
-
-## Make Predictions
-
-```{python}
-# Predict and fill in submission template
-for spec, id_, subject, ts in dataset.test_data_list:
-    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
-                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
-    prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
-```
-
-```{python}
-tst_sc1.subject_id.unique()
+tst_sc2.subject_id.unique()
 ```
 
 # Subject hbv043 Model
@@ -1506,89 +1195,30 @@ for spec, id_, subject, ts in dataset.test_data_list:
     output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
                     torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
     prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+    df_index = tst_sc2.index[tst_sc2['measurement_id'] == id_]
+    tst_sc2.prediction[df_index] = prediction
 ```
 
 ```{python}
-tst_sc1.subject_id.unique()
-```
-
-# Subject hbv022 Model
-
-```{python}
-torch.cuda.empty_cache()
-```
-
-```{python}
-subject_id = 'hbv022'
-```
-
-```{python}
-REALdataset.run_preprocessing(specific_key_dataset=subject_id)
-```
-
-```{python}
-REALdataset.run_test_preprocessing(specific_key_dataset=subject_id)
-```
-
-## Train Validation Split
-
-```{python}
-REALdataset.train_validation_split(val_proportion=0.2)
-```
-
-```{python}
-print('Training size:',len(REALdataset.train_list))
-print('Validation size:',len(REALdataset.val_list))
-```
-
-## Run Training/Validation
-
-```{python}
-# Hyperparameters
-hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_batch_size,
-                       'val_batch_size': val_batch_size})
-```
-
-```{python}
-# Run training/validation of model
-model = LightningEnsemble(dataset_name=dataset_name,hparams=hparams,train_list=dataset.train_list,
-                       val_list=dataset.val_list,label_class=label_class)
-logger = TensorBoardLogger("lightning_logs", name=model_name, version=f'subject_{subject_id}_{label_class}')
-trainer = pl.Trainer(early_stop_callback=early_stop_callback,
-                     max_epochs=max_epochs, gpus=gpus, logger=logger,checkpoint_callback=False)
-trainer.fit(model)
-```
-
-## Make Predictions
-
-```{python}
-# Predict and fill in submission template
-for spec, id_, subject, ts in dataset.test_data_list:
-    output = model([torch.unsqueeze(TF.to_tensor(spec).cuda(), dim=0),
-                    torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)])
-    prediction = output.argmax(dim=0, keepdim=True).item()
-    df_index = tst_sc1.index[tst_sc1['measurement_id'] == id_]
-    tst_sc1.prediction[df_index] = prediction
+tst_sc2.subject_id.unique()
 ```
 
 # Save Predictions
 
 ```{python}
-del tst_sc1['subject_id']
+del tst_sc2['subject_id']
 ```
 
 ```{python}
-tst_sc1.prediction = tst_sc1.prediction.astype(int)
+tst_sc2.prediction = tst_sc2.prediction.astype(int)
 ```
 
 ```{python}
 #Save submission df to CSV
-#tst_sc1.to_csv('Data/on_off_predictions.csv', index=False)
+#tst_sc2.to_csv('Data/dyskinesia_predictions.csv', index=False)
 ```
 
 ```{python}
 # Check to see if csv saved correctly
-#pd.read_csv('Data/on_off_predictions.csv').head()
+#pd.read_csv('Data/dyskinesia_predictions.csv').head()
 ```
