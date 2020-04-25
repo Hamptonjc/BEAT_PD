@@ -10,7 +10,6 @@ from torch.nn import functional as F
 from torchvision import transforms, models
 from torch.utils import data
 from torch.utils.data import DataLoader
-#import BEATPD_LSTM, Torch_Dataset
 
 
 torch.manual_seed(314)
@@ -116,10 +115,10 @@ class LightningEnsemble(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
-        avg_score = float(BEATPDscoring(
-            self.PredictionsDf)[r'$\frac{\sqrt{n_k} {MSE}_k}{\sum_{k=1}^N \sqrt{n_k} }$'].values.mean())
+        score = float(BEATPDscoring(self.PredictionsDf).iloc[:,-1].sum())
+        self.PredictionsDf = pd.DataFrame(columns=['measurement_id', 'subject_id', 'actual','predicted']) #Reset prediction df
         tensorboard_logs = {'Average Validation Loss': avg_loss,
-                            'Average Validation Accuracy': avg_acc, 'Average Validation BEAT_PD Score':avg_score}
+                            'Average Validation Accuracy': avg_acc, 'Average Validation BEAT_PD Score':score}
         return {'val_loss': avg_loss, 'val_acc': avg_acc, 'log': tensorboard_logs}
 
 
