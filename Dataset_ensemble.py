@@ -1,3 +1,8 @@
+# Author: Jonathan Hampton
+# Spring 2020
+
+
+
 # Imports
 import os
 import pandas as pd
@@ -12,6 +17,8 @@ import librosa.display
 from scipy.fftpack import fft
 from scipy.signal import get_window
 from numba import jit
+from imblearn.over_sampling import SMOTE
+
 
 class Dataset:
     '''
@@ -45,8 +52,8 @@ class Dataset:
         self.train_ts_dir = train_ts_dir
         self.ancil_ts_dir = ancil_ts_dir
         self.combine_ancil = combine_ancil
-        self.train_labels = pd.read_csv(train_label_dir).replace(np.nan, 'nan', regex=True)
-        self.ancil_labels = pd.read_csv(ancil_label_dir).replace(np.nan, 'nan', regex=True)
+        self.train_labels = pd.read_csv(train_label_dir).replace(np.nan, -1, regex=True) # changed replace np.nan with str 'nan' to replace w/ -1
+        self.ancil_labels = pd.read_csv(ancil_label_dir).replace(np.nan, -1, regex=True)
         self.test_ts_dir = test_ts_dir
         self.test_data_id_dir = test_data_id_dir
         self.issue_measurements = []
@@ -238,10 +245,7 @@ class Dataset:
         return spec_arr
     
     def spectrogram_preprocessing(self,ts):
-        ts = self.pad_ts(ts)
-        ts = self.center_n(ts)
-        ts = self.magnitude(ts)
-        ts = self.zero_center_R(ts)
+        ts = pd.DataFrame(ts, columns=['X', 'Y', 'Z', 'R'])
         arr = self.spec_array(ts)
         arr = self.spec_prep(arr)
         return arr
@@ -282,7 +286,7 @@ class Dataset:
         self.val_list = self.data_list[:split_index]
 
 
-    def LSTM_preprocessing(self, ts):
+    def TS_preprocessing(self, ts):
         ts = self.pad_ts(ts)
         ts = self.center_n(ts)
         ts = self.magnitude(ts)
@@ -290,35 +294,40 @@ class Dataset:
         return ts.to_numpy()
 
 
-    def run_preprocessing(self, specific_key_dataset=None):
+    def run_preprocessing(self, specific_key_dataset=None, create_psuedo_samples=False,  k_neighbors=None):
         '''
         specific_key_dataset (OPTIONAL): Pick a specific key to preprocess and create a torch dataset with.
 
-        Use: For example, data dictionary is sorted by subject id. Select a specific subject to create a dataset to train with.
+        (^^^Use: For example, if data dictionary is sorted by subject id, select a specific subject to create a dataset to train with.)
+
+        create_psuedo_samples (OPTIONAL): When True, creates psuedo samples via SMOTE
+
+        k_neighbors (Mandatory when create_psuedo_samples=True): set the number of neighbors SMOTE uses to create psuedo samples.
+
         '''
+        self.replaced_label_count = 0
         self.data_list = []
-        self.psuedo_label_count = 0
+        self.label_2_index()
         if specific_key_dataset:
             self.ensemble_preprocessed_dict = {specific_key_dataset: self.data_dict[specific_key_dataset]}
         else:   
             self.ensemble_preprocessed_dict = self.data_dict
         warnings.filterwarnings("ignore")
-        for key, tup_list in tqdm(self.ensemble_preprocessed_dict.items(),'Preprocessing Data',
+        self.ensemble_preprocessed_dict = self.stage_1_preprocessing(self.ensemble_preprocessed_dict, create_psuedo_samples=create_psuedo_samples, k_neighbors=k_neighbors)
+        for key, tup_list in tqdm(self.ensemble_preprocessed_dict.items(),'stage II Preprocessing',
                                  total=len(self.ensemble_preprocessed_dict),position=0, leave=True):
             for i, tup in enumerate(tup_list):
-                tup_list[i].append(self.LSTM_preprocessing(tup[0]))
                 tup_list[i][0] = self.spectrogram_preprocessing(tup[0])
-        self.label_2_index()
         for key, tup_list in self.ensemble_preprocessed_dict.items():
             for i, tup in enumerate(tup_list):
-                if tup[self.label_index] == 'nan':
+                if tup[self.label_index] == -1:
                     tup[self.label_index] = self.avg_label(self.ensemble_preprocessed_dict, key, self.label_index)
-                    self.psuedo_label_count += 1
+                    self.replaced_label_count += 1
                     self.data_list.append(tup)
                 else:
                     self.data_list.append(tup)
-        if self.psuedo_label_count > 0:
-            print(f'{self.psuedo_label_count} samples with missing labels.\n Labels were replaced with keys label mean.')
+        if self.replaced_label_count > 0:
+            print(f'{self.replaced_label_count} samples with missing labels.\n Labels were replaced with key label mean.')
         warnings.filterwarnings("default")
 
 
@@ -332,8 +341,8 @@ class Dataset:
         for key, tup_list in tqdm(self.preprocessed_test_dict.items(),'Preprocessing Test Data',
                                  total=len(self.preprocessed_test_dict),position=0, leave=True):
             for i, tup in enumerate(tup_list):
-                tup_list[i].append(self.LSTM_preprocessing(tup[0]))
-                tup_list[i][0] = self.spectrogram_preprocessing(tup[0])
+                tup_list[i].append(self.TS_preprocessing(tup[0]))
+                tup_list[i][0] = self.spectrogram_preprocessing(tup[-1])
         for key, tup_list in self.preprocessed_test_dict.items():
             for i, tup in enumerate(tup_list):
                 self.test_data_list.append(tup)
@@ -349,7 +358,55 @@ class Dataset:
                 pass
         return self.label_sum // len(sample_dict[key])
 
-
+    def stage_1_preprocessing(self, ensemble_preprocessed_dict, create_psuedo_samples=False, k_neighbors=None):
+        '''
+        Runs time series preprocessing and (optional) creates psuedo samples via SMOTE
+        '''
+        low_sample_count = []
+        for key, tup_list in tqdm(ensemble_preprocessed_dict.items(),'Stage I Preprocessing',
+                                 total=len(ensemble_preprocessed_dict),position=0, leave=True):
+            if len(ensemble_preprocessed_dict[key]) < 150:
+                low_sample_count.append(key)
+            for i, tup in enumerate(tup_list):
+                tup_list[i].append(self.TS_preprocessing(tup[0]))
+                tup_list[i][0] = self.TS_preprocessing(tup[0])
+        if create_psuedo_samples:
+            for key in low_sample_count:
+                x_arr = np.array(ensemble_preprocessed_dict[key][0][0]).T
+                label_0 = ensemble_preprocessed_dict[key][0][self.label_index]
+                y_arr = np.array([[label_0,label_0,label_0,label_0]]).T
+                for sample in ensemble_preprocessed_dict[key][1:]:
+                    arr = sample[0]
+                    label = sample[self.label_index]
+                    arr = arr.transpose()
+                    x_arr = np.vstack((x_arr,arr))
+                    label_arr = np.array([[label,label,label,label]]).T
+                    y_arr = np.vstack((y_arr,label_arr))
+                class_counts = np.unique(y_arr,return_counts=True)
+                for idx in range(class_counts[0].shape[0]):
+                    if class_counts[1][idx] < k_neighbors:
+                        oversamp_class = class_counts[0][idx]
+                        oversamp_idx = np.where(y_arr == oversamp_class)[0]
+                        for os_idx in oversamp_idx:
+                            y_arr = np.append(y_arr, y_arr[os_idx])
+                            x_arr = np.vstack((x_arr, x_arr[os_idx]))
+                print(low_sample_count)
+                print(class_counts)
+                print(np.unique(y_arr,return_counts=True))
+                sm = SMOTE(random_state=42,k_neighbors=k_neighbors,sampling_strategy='all')
+                X_res, y_res = sm.fit_resample(x_arr, y_arr)
+                X_res = X_res[x_arr.shape[0]:] # get only psuedo samples
+                y_res = y_res[x_arr.shape[0]:] # get only psuedo labels
+                for idx in range(X_res.shape[0]):
+                    if idx % 4 == 0:
+                        psuedo_sample = X_res[idx:idx+4].T
+                        psuedo_label = y_res[idx]
+                        psuedo_id = 'psuedo'
+                        subject_id = key
+                        sample = [psuedo_sample, psuedo_id, subject_id, 0, 0, 0, psuedo_sample]
+                        sample[self.label_index] = psuedo_label
+                        ensemble_preprocessed_dict[key].append(sample)
+        return ensemble_preprocessed_dict
 
 
 
