@@ -51,6 +51,10 @@ import random
 ```
 
 ```{python}
+# %run -i Dataset_ensemble.py
+```
+
+```{python}
 torch.cuda.empty_cache()
 ```
 
@@ -114,10 +118,13 @@ test_data_id_dir='Data/BEATPDchallenge/CIS-PD_Test_Data_IDs.csv'
 ```
 
 ```{python}
+start = time.time()
 dataset = Dataset(dataset_name=dataset_name, sort_by=sort_by, label_class = label_class,
                            train_ts_dir=train_ts_dir, train_label_dir=train_label_dir,
                            ancil_ts_dir=ancil_ts_dir, ancil_label_dir=ancil_label_dir,
-                           combine_ancil=False,test_ts_dir=test_ts_dir, test_data_id_dir=test_data_id_dir)
+                           combine_ancil=False)#,test_ts_dir=test_ts_dir, test_data_id_dir=test_data_id_dir)
+total = time.time() - start
+print(f'it took {total/60} minutes to create dataset dictionary')
 ```
 
 ```{python}
@@ -131,7 +138,7 @@ dataset.test_data_dict.keys()
 ## Model's Settings
 
 ```{python}
-model_name = "testing_score_function"
+model_name = "testing_psuedo_samples"
 checkpoint_callback = False
 early_stop_callback=True 
 max_epochs=10
@@ -148,7 +155,7 @@ subject_id = 1004
 ```
 
 ```{python}
-dataset.run_preprocessing(specific_key_dataset=subject_id)
+dataset.run_preprocessing(specific_key_dataset=subject_id, create_psuedo_samples=True, k_neighbors=5)
 ```
 
 ```{python}
@@ -176,11 +183,11 @@ hparams = Namespace(**{'learning_rate':learning_rate, 'train_batch_size': train_
 
 ```{python}
 # Start tensorboard
-notebook.start(f'--logdir lightning_logs --host localhost --port 1336')
+notebook.start(f'--logdir lightning_logs --host localhost --port 2347')
 ```
 
 ```{python}
-notebook.display(port=1336)
+notebook.display(port=2347)
 ```
 
 ```{python}
