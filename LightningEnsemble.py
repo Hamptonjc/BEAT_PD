@@ -1,3 +1,5 @@
+
+# Imports
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.logging import TensorBoardLogger
@@ -13,17 +15,34 @@ from torch.utils.data import DataLoader
 
 
 torch.manual_seed(314)
+
+#Edit VGG16 architechture for use with CIS-PD Data.
 CIS_VGG16 = models.vgg16(pretrained=True)
 for param in CIS_VGG16.parameters():
     param.requires_grad = False
 CIS_VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
                                     nn.Linear(512,5))
 
-REAL_VGG16 = models.vgg16(pretrained=True)
-for param in REAL_VGG16.parameters():
+#Edit VGG16 architechture for use with REAL-PD Data.
+REAL_ON_OFF_VGG16 = models.vgg16(pretrained=True)
+for param in REAL_ON_OFF_VGG16.parameters():
     param.requires_grad = False
-REAL_VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
+REAL_ON_OFF_VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
                                     nn.Linear(512,2))
+
+#Edit VGG16 architechture for use with REAL-PD Data.
+REAL_DYSK_VGG16 = models.vgg16(pretrained=True)
+for param in REAL_DYSK_VGG16.parameters():
+    param.requires_grad = False
+REAL_DYSK_VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
+                                    nn.Linear(512,3))
+
+#Edit VGG16 architechture for use with REAL-PD Data.
+REAL_TREMOR_VGG16 = models.vgg16(pretrained=True)
+for param in REAL_TREMOR_VGG16.parameters():
+    param.requires_grad = False
+REAL_TREMOR_VGG16.classifier[6] = nn.Sequential(nn.Linear(4096,512),nn.ReLU(),
+                                    nn.Linear(512,4))
 
 
 
@@ -42,7 +61,7 @@ class LightningEnsemble(pl.LightningModule):
 
     '''
 
-    def __init__(self, dataset_name, hparams, train_list, val_list, label_class):
+    def __init__(self, dataset_name, hparams, train_list, val_list, label_class, path_to_null_preds, gpus):
         super(LightningEnsemble, self).__init__()
         self.dataset_name = dataset_name
         self.learning_rate = hparams.learning_rate
@@ -51,28 +70,62 @@ class LightningEnsemble(pl.LightningModule):
         self.train_list = train_list
         self.val_list = val_list
         self.label_class = label_class
+        self.gpus = gpus
+        self.null_preds = pd.read_csv(path_to_null_preds, index_col='subject_id')#.rename(index=str)
         self.PredictionsDf = pd.DataFrame(columns=['measurement_id', 'subject_id', 'actual','predicted'])
+        #Specify correct models to use given the data set (CIS or REAL).
         if dataset_name == 'CIS':
             self.vgg16 = CIS_VGG16
-            self.lstm = LSTM(input_dim=4, hidden_dim=4, batch_size=self.train_batch_size, output_dim=5)
-            self.classifier = nn.Linear(10, 5)
+            self.lstm = LSTM(input_dim=4, hidden_dim=4, batch_size=self.train_batch_size, output_dim=5, gpus=self.gpus)
+            self.classifier = nn.Linear(11, 5)
 
-        elif dataset_name == 'REAL':
-            self.vgg16 = REAL_VGG16
-            self.lstm = LSTM(input_dim=4, hidden_dim=4, batch_size=self.train_batch_size, output_dim=2)
-            self.classifier = nn.Linear(4, 2)
+        elif dataset_name == 'REAL' and label_class == 'on_off':
+            self.vgg16 = REAL_ON_OFF_VGG16
+            self.lstm = LSTM(input_dim=4, hidden_dim=4, batch_size=self.train_batch_size, output_dim=2, gpus=self.gpus)
+            self.classifier = nn.Linear(5, 2)
+
+        elif dataset_name == 'REAL' and label_class == 'dyskinesia':
+            self.vgg16 = REAL_DYSK_VGG16
+            self.lstm = LSTM(input_dim=4, hidden_dim=4, batch_size=self.train_batch_size, output_dim=3, gpus=self.gpus)
+            self.classifier = nn.Linear(7, 3)
+
+        elif dataset_name == 'REAL' and label_class == 'tremor':
+            self.vgg16 = REAL_TREMOR_VGG16
+            self.lstm = LSTM(input_dim=4, hidden_dim=4, batch_size=self.train_batch_size, output_dim=4, gpus=self.gpus)
+            self.classifier = nn.Linear(9, 4)
+        
         else:
-            raise TypeError('Specifiy CIS or REAL for dataset_name')
+            raise TypeError('Specifiy dataset_name and label_class')
 
     def forward(self, x):
-        try: #Training/validation
-            spec_output = self.vgg16(x[0])
-            ts_output = self.lstm(x[6].permute(1,0,2).type('torch.FloatTensor'))
-            final_output = self.classifier(torch.cat((spec_output, ts_output),dim=1))
-        except: # Predicting
-            spec_output = self.vgg16(x[0])
-            ts_output = self.lstm(x[1].permute(1,0,2).type('torch.FloatTensor'))
-            final_output = self.classifier(torch.cat((spec_output, ts_output),dim=1))
+        if self.gpus:
+            try: #Training/validation
+                spec_output = self.vgg16(x[0])
+                ts_output = self.lstm(x[6].permute(1,0,2).type('torch.FloatTensor'))
+                if self.dataset_name == 'CIS':
+                    null_pred = torch.unsqueeze(torch.tensor(self.null_preds.loc[tuple(x[2].cpu().numpy().astype('str')), self.label_class]),dim=0).reshape(-1,1).cuda()
+                else:
+                    null_pred = torch.unsqueeze(torch.tensor(self.null_preds.loc[x[2], self.label_class]),dim=0).reshape(-1,1).cuda()
+                final_output = self.classifier(torch.cat((spec_output, ts_output, null_pred),dim=1))
+            except: # Predicting
+                spec_output = self.vgg16(x[0])
+                ts_output = self.lstm(x[1].permute(1,0,2).type('torch.FloatTensor'))
+                null_pred = torch.unsqueeze(torch.tensor(self.null_preds.loc[str(x[2]), self.label_class]),dim=0).reshape(-1,1).cuda()
+                final_output = self.classifier(torch.cat((spec_output, ts_output, null_pred),dim=1))
+        else:
+            try: #Training/validation
+                spec_output = self.vgg16(x[0])
+                ts_output = self.lstm(x[6].permute(1,0,2).type('torch.FloatTensor'))
+                if self.dataset_name == 'CIS':
+                    null_pred = torch.unsqueeze(torch.tensor(self.null_preds.loc[tuple(x[2].cpu().numpy().astype('str')), self.label_class]),dim=0).reshape(-1,1)
+                else:
+                    null_pred = torch.unsqueeze(torch.tensor(self.null_preds.loc[x[2], self.label_class]),dim=0).reshape(-1,1)
+                final_output = self.classifier(torch.cat((spec_output, ts_output, null_pred),dim=1))
+            except: # Predicting
+                spec_output = self.vgg16(x[0])
+                ts_output = self.lstm(x[1].permute(1,0,2).type('torch.FloatTensor'))
+                null_pred = torch.unsqueeze(torch.tensor(self.null_preds.loc[str(x[2]), self.label_class]),dim=0).reshape(-1,1)
+                final_output = self.classifier(torch.cat((spec_output, ts_output, null_pred),dim=1))
         return final_output
     
     def configure_optimizers(self):
@@ -101,7 +154,7 @@ class LightningEnsemble(pl.LightningModule):
         acc = torch.tensor((batch_corr/self.val_batch_size) * 100)
         pred = pred.cpu().tolist()
         pred = sum(pred, [])
-        try:
+        try: # For BEATPD scoring
             self.PredictionsDf = self.PredictionsDf.append(
                 pd.DataFrame({'measurement_id':list(x[1]),'subject_id':list(x[2].cpu().tolist()), 'actual':y.tolist(),
                     'predicted':pred}),ignore_index=True)
@@ -116,7 +169,7 @@ class LightningEnsemble(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
-        score = float(BEATPDscoring(self.PredictionsDf).iloc[:,-1].sum())
+        score = float(BEATPDscoring(self.PredictionsDf).iloc[:,-1].sum())# For BEATPD scoring
         self.PredictionsDf = pd.DataFrame(columns=['measurement_id', 'subject_id', 'actual','predicted']) #Reset prediction df
         tensorboard_logs = {'Average Validation Loss': avg_loss,
                             'Average Validation Accuracy': avg_acc, 'Average Validation BEAT_PD Score':score}
@@ -124,6 +177,9 @@ class LightningEnsemble(pl.LightningModule):
 
 
     def prepare_data(self):
+        '''
+        Prep data with Torch Dataset. Converts data to tensors etc.
+        '''
         self.prepped_trainset = Torch_Dataset(self.train_list, label_class=self.label_class)
         self.prepped_valset = Torch_Dataset(self.val_list, label_class=self.label_class)
         
