@@ -19,7 +19,7 @@ class LSTM(nn.Module):
                 torch.zeros(self.num_layers, self.batch_size, self.hidden_dim).type('torch.FloatTensor').cuda())
 
     def forward(self, input):
-        lstm_out, self.hidden = self.lstm(input.view(len(input), self.batch_size, -1).cuda())
-        output = self.linear(lstm_out[-1].view(self.batch_size, -1))
-        return output.view(-1)
+        lstm_out, self.hidden = self.lstm(input.view(len(input), -1, 4).cuda())
+        output = self.linear(lstm_out[-1].view(-1, 4))
+        return output
 

@@ -44,6 +44,7 @@ class LightningEnsemble(pl.LightningModule):
 
     def __init__(self, dataset_name, hparams, train_list, val_list, label_class):
         super(LightningEnsemble, self).__init__()
+        self.dataset_name = dataset_name
         self.learning_rate = hparams.learning_rate
         self.train_batch_size = hparams.train_batch_size
         self.val_batch_size = hparams.val_batch_size
@@ -65,14 +66,14 @@ class LightningEnsemble(pl.LightningModule):
 
     def forward(self, x):
         try: #Training/validation
-            spec = self.vgg16(x[0])
-            ts = self.lstm(x[6].permute(1,0,2).type('torch.FloatTensor'))
-            output = self.classifier(torch.cat([spec.view(-1), ts]))
-        except: #Predicting
-            spec = self.vgg16(x[0])
-            ts = self.lstm(x[1].type('torch.FloatTensor'))
-            output = self.classifier(torch.cat([spec.view(-1), ts]))
-        return output
+            spec_output = self.vgg16(x[0])
+            ts_output = self.lstm(x[6].permute(1,0,2).type('torch.FloatTensor'))
+            final_output = self.classifier(torch.cat((spec_output, ts_output),dim=1))
+        except: # Predicting
+            spec_output = self.vgg16(x[0])
+            ts_output = self.lstm(x[1].permute(1,0,2).type('torch.FloatTensor'))
+            final_output = self.classifier(torch.cat((spec_output, ts_output),dim=1))
+        return final_output
     
     def configure_optimizers(self):
         optim = torch.optim.Adam(list(self.vgg16.classifier[6].parameters())+ list(self.lstm.parameters()) +
@@ -82,7 +83,7 @@ class LightningEnsemble(pl.LightningModule):
     def training_step(self, train_batch, batch_idx):
         batch_corr = 0
         x, y = train_batch
-        logits = self.forward(x).unsqueeze(0)
+        logits = self.forward(x)
         loss =  F.cross_entropy(logits, y)
         pred = logits.argmax(dim=1, keepdim=True)
         batch_corr += pred.eq(y.view_as(pred)).sum().item()
@@ -93,7 +94,7 @@ class LightningEnsemble(pl.LightningModule):
     def validation_step(self, val_batch, batch_idx):
         batch_corr = 0
         x, y = val_batch
-        logits = self.forward(x).unsqueeze(0)
+        logits = self.forward(x)
         loss = F.cross_entropy(logits, y)
         pred = logits.argmax(dim=1, keepdim=True)
         batch_corr += pred.eq(y.view_as(pred)).sum().item()
@@ -127,10 +128,10 @@ class LightningEnsemble(pl.LightningModule):
         self.prepped_valset = Torch_Dataset(self.val_list, label_class=self.label_class)
         
     def train_dataloader(self):
-        return DataLoader(self.prepped_trainset,batch_size=self.train_batch_size, shuffle=True)
+        return DataLoader(self.prepped_trainset,batch_size=self.train_batch_size, shuffle=True, drop_last=True)
     
     def val_dataloader(self):
-        return DataLoader(self.prepped_valset,batch_size=self.val_batch_size, shuffle=True)
+        return DataLoader(self.prepped_valset,batch_size=self.val_batch_size, shuffle=True, drop_last=True)
 
 
 
