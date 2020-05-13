@@ -57,12 +57,14 @@ class Dataset:
             self.train_labels = pd.concat([self.train_labels, 
                                            self.ancil_labels]).reset_index(drop=True)
         self.classes = self.train_labels[self.sort_by].unique()
-        #self.train_labels = self.train_labels[self.train_labels[self.label_class] != 'nan']
         if self.test_data_id_dir:
             self.test_data_ids = pd.read_csv(self.test_data_id_dir)
         self.create_dictionary()
         
-    def CIS_dictionary(self): # Create CIS dictionary
+    def CIS_dictionary(self):
+        '''
+        Creates dictionary for CIS-PD data.
+        '''
         self.data_dict = {k : [] for k in self.classes}
         for index, row in tqdm(self.train_labels.iterrows(), 'Creating Dictionary',
                                total=self.train_labels.shape[0],position=0, leave=True):
@@ -81,6 +83,9 @@ class Dataset:
         return self.data_dict
     
     def REAL_dictionary(self):
+        '''
+        Creates dictionary for REAL-PD data.
+        '''
         self.data_dict = {k : [] for k in self.classes}
         for index, row in tqdm(self.train_labels.iterrows(), 'Creating Dictionary',
                                total=self.train_labels.shape[0],position=0, leave=True):
@@ -149,6 +154,9 @@ class Dataset:
         return self.data_dict
 
     def CIS_test_dictionary(self):
+        '''
+        Creates dictionary for CIS-PD test data.
+        '''
         self.test_subjects = self.test_data_ids.subject_id.unique()
         self.test_data_dict = {k : [] for k in self.test_subjects}
         for index, row in tqdm(self.test_data_ids.iterrows(), 'Creating Test Dictionary',
@@ -158,6 +166,9 @@ class Dataset:
                     '.csv').drop(columns='Timestamp'),row.measurement_id,row.subject_id])
 
     def REAL_test_dictionary(self):
+        '''
+        Creates dictionary for REAL-PD test data.
+        '''
         self.test_subjects = self.test_data_ids.subject_id.unique()
         self.test_data_dict = {k : [] for k in self.test_subjects}
         for index, row in tqdm(self.test_data_ids.iterrows(), 'Creating Test Dictionary',
@@ -179,6 +190,9 @@ class Dataset:
 
 
     def pad_ts(self,ts):
+        '''
+        Pads with zeros or trims time series to make them an even 20 minutes.
+        '''
         if ts.index[-1] < 60000:
             pad_size = 60000 - ts.index[-1]
             pre_pad_size = pad_size//2
@@ -192,16 +206,25 @@ class Dataset:
         return ts
     
     def center_n(self,ts, n=10):
+        '''
+        Takes the center n minutes of the time series.
+        '''
         n_rows = int(n/(.02/60))
         center = ts.index[-1]//2
         return ts[center-(n_rows//2):center+(n_rows//2)]
 
     def magnitude(self,ts):
+        '''
+        Creates a new column 'R' in the time series that is the calculated magnitude of X, Y, and Z.
+        '''
         for _ in ts:
             ts['R'] = np.sqrt(ts['X']**2 + ts['Y']**2 + ts['Z']**2) 
         return ts
 
     def zero_center_R(self,ts):
+        '''
+        Zero centers the 'R' magnitude column of the time series
+        '''
         R = ts.R.to_numpy()
         @jit(nopython=True)
         def R_zero_center(R):
@@ -215,6 +238,9 @@ class Dataset:
 
     def spec_array(self,X, n_mels = 128, hop_length = 256, sample_rate = 0.02,
                  n_fft = 2048, fmin = 0, fmax = 0.01, power=1.0):
+        '''
+        Creates a spectrogram array of the time series.
+        '''
         t = np.arange(0,len(X),1)
         sclr = 8
         calib = sclr*np.cos(2*np.pi*t/len(X))
@@ -240,12 +266,18 @@ class Dataset:
         return img2
 
     def normalize(self,ts):
+        '''
+        Normalizes X, Y, and Z of the time series.
+        '''
         X = ts[['X','Y','Z']].values
         for i in range(3):
             X[:,i] -= X[:,i].mean()       
         return X
     
     def spectrogram_preprocessing(self,ts):
+        '''
+        normalizes time series and creates a spectrogram from the normalized time series.
+        '''
         ts = pd.DataFrame(ts, columns=['X', 'Y', 'Z', 'R'])
         ts = ts.drop(columns=['R'])
         arr = self.normalize(ts)
@@ -253,6 +285,9 @@ class Dataset:
         return arr
     
     def REAL_2_CIS_format(self, ts):
+        '''
+        Converts the REAL-PD column names to the CIS-PD format.
+        '''
         df = pd.DataFrame()
         df['X'] = ts.x
         df['Y'] = ts.y
@@ -263,9 +298,7 @@ class Dataset:
         '''Create CIS or REAL dictionary. Dictionary keys are classes specified to sort by.
         Elements are lists of measurements.
         Items in lists are lists of: [time series, measurement_id, subject_id, on_off,
-        dyskinesia, tremor, gyroscope_df (when available)].
-        These nested lists were chosen over tuples since a mutable data type
-        was needed to preprocess the data further.'''
+        dyskinesia, tremor, gyroscope_df (when available)].'''
         if self.dataset_name == 'CIS':
             self.CIS_dictionary()
             if self.test_ts_dir and self.test_data_id_dir:
@@ -280,6 +313,9 @@ class Dataset:
             print(f'Issue with {len(self.issue_measurements)} measurements.\n Enter self.issue_measuements for a list of them.')
 
     def label_2_index(self):
+        '''
+        sets self.label_index to appropriate index of sample list given the label class.
+        '''
         if self.label_class == 'on_off':
             self.label_index = 3
         elif self.label_class == 'dyskinesia':
@@ -289,6 +325,9 @@ class Dataset:
         
 
     def train_validation_split(self, val_proportion=0.2):
+        '''
+        splits self.data_list into self.train_list and self.val_list.
+        '''
         random.shuffle(self.data_list)
         split_index = int(len(self.data_list) * val_proportion)
         self.train_list = self.data_list[split_index:]
@@ -296,6 +335,9 @@ class Dataset:
 
 
     def TS_preprocessing(self, ts):
+        '''
+        pads, centers, creates R column, zero centers R, and returns numpy array of time series.
+        '''
         if self.dataset_name == 'REAL':
             ts = self.REAL_2_CIS_format(ts)
         else:
@@ -317,9 +359,9 @@ class Dataset:
 
         k_neighbors (Mandatory when create_synthetic_samples=True): set the number of neighbors SMOTE uses to create psuedo samples.
 
-        Stage I == TS_preprocessing and creates synthetic samples
+        Stage I == TS_preprocessing and creates synthetic samples.
 
-        Stage II == spec_preprocessing, replace nan, and creates data list
+        Stage II == spec_preprocessing, replace nan, and creates data list.
 
         '''
         self.replaced_label_count = 0
@@ -349,6 +391,11 @@ class Dataset:
 
 
     def run_test_preprocessing(self, specific_key_dataset=None):
+        '''
+        Preprocesses test data.
+
+        Select specific key to process.
+        '''
         self.test_data_list = []
         if specific_key_dataset:
             self.preprocessed_test_dict = {specific_key_dataset: self.test_data_dict[specific_key_dataset]}
@@ -372,6 +419,9 @@ class Dataset:
 
 
     def avg_label(self, sample_dict, key, label_index):
+        '''
+        Calculates average label of given key.
+        '''
         self.label_sum = 0
         for tup in sample_dict[key]:
             try:
