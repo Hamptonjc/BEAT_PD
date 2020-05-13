@@ -31,7 +31,7 @@ class Torch_Dataset(data.Dataset):
         return spec, label
 
     def ts_transform(self, ts):
-        ts = torch.tensor(dataset.data_list[0][6]).type('torch.FloatTensor').view(ts.shape[0], -1)
+        ts = torch.tensor(ts).type('torch.FloatTensor').view(ts.shape[0], -1)
         return ts
 
         
@@ -39,10 +39,7 @@ class Torch_Dataset(data.Dataset):
         measurement = list(self.data_list[index])
         label = self.data_list[index][self.label_index]
         measurement[0], label = self.torch_transform(measurement[0], label)
-        try:
-            measurement[6] = self.ts_transform(measurement[6])
-        except:
-            pass
+        measurement[6] = self.ts_transform(measurement[6])
         return measurement, label
     
     def __len__(self):
