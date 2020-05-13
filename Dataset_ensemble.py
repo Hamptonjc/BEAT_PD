@@ -1,7 +1,3 @@
-# Author: Jonathan Hampton
-# Spring 2020
-
-
 
 # Imports
 import os
@@ -201,12 +197,8 @@ class Dataset:
         return ts[center-(n_rows//2):center+(n_rows//2)]
 
     def magnitude(self,ts):
-        if self.dataset_name == 'CIS':
-            for _ in ts:
-                ts['R'] = np.sqrt(ts['X']**2 + ts['Y']**2 + ts['Z']**2)
-        else:
-            for _ in ts:
-                ts['R'] = np.sqrt(ts['x']**2 + ts['y']**2 + ts['z']**2)  
+        for _ in ts:
+            ts['R'] = np.sqrt(ts['X']**2 + ts['Y']**2 + ts['Z']**2) 
         return ts
 
     def zero_center_R(self,ts):
@@ -220,36 +212,53 @@ class Dataset:
         ts.R = R
         return ts
 
-    def spec_array(self,ts, n_mels = 128, hop_length = 256, sample_rate = 0.02,
+
+    def spec_array(self,X, n_mels = 128, hop_length = 256, sample_rate = 0.02,
                  n_fft = 2048, fmin = 0, fmax = 0.01, power=1.0):
-        fig, ax = plt.subplots(figsize=(12, 5))
-        mel_spec = librosa.feature.melspectrogram(np.array(ts.R), n_fft=n_fft, hop_length=hop_length,
+        t = np.arange(0,len(X),1)
+        sclr = 8
+        calib = sclr*np.cos(2*np.pi*t/len(X))
+        imgs = []
+        for i in range(3):
+            mel_spec = librosa.feature.melspectrogram(X[:,i] + calib, 
+                                              n_fft=n_fft, hop_length=hop_length,
                                               n_mels=n_mels, sr=sample_rate, power=power,
                                               fmin=fmin, fmax=fmax)
-        mel_spec_db = librosa.amplitude_to_db(mel_spec, ref=np.max)
-        librosa.display.specshow(mel_spec_db, x_axis='time',  y_axis='mel', 
-                             sr=sample_rate, hop_length=hop_length,fmin=fmin, fmax=fmax, ax=ax)
-        fig.patch.set_visible(False)
-        ax.axis('off')
-        fig.canvas.draw()
-        X = np.array(fig.canvas.renderer.buffer_rgba())
-        plt.close()
+            mel_spec_db = librosa.amplitude_to_db(mel_spec, ref=np.max)
+            mn,MX = mel_spec_db.min(), mel_spec_db.max() 
+            mel_spec_db = 255.99*(mel_spec_db - mn)/(MX-mn)
+            imgs.append( np.repeat(np.repeat(mel_spec_db,2, axis=0), 2, axis=1) )
+        img = np.transpose( np.array(imgs, dtype = np.uint8), (1,2,0) )
+        m,n,p = img.shape
+        img2 = np.zeros((224,224,3), dtype = np.uint8)
+        if( m < 224 or n < 224 ):
+            m = min(m,224)
+            n = min(n,224)
+            img2[:m,:n,:] = img[:m,:n,:]
+        else:
+            img2[:,:,:] = img[:224,:224,:]
+        return img2
+
+    def normalize(self,ts):
+        X = ts[['X','Y','Z']].values
+        for i in range(3):
+            X[:,i] -= X[:,i].mean()       
         return X
-    
-    def spec_prep(self,spec_arr, cropx=670, cropy=272):
-        y,x,c = spec_arr.shape
-        startx = x//2 - cropx//2
-        starty = y//2 - cropy//2    
-        spec_arr = spec_arr[starty:starty+cropy, startx:startx+cropx, :]
-        spec_arr = spec_arr[:,:,:3]
-        return spec_arr
     
     def spectrogram_preprocessing(self,ts):
         ts = pd.DataFrame(ts, columns=['X', 'Y', 'Z', 'R'])
-        arr = self.spec_array(ts)
-        arr = self.spec_prep(arr)
+        ts = ts.drop(columns=['R'])
+        arr = self.normalize(ts)
+        arr = self.spec_array(arr)
         return arr
-        
+    
+    def REAL_2_CIS_format(self, ts):
+        df = pd.DataFrame()
+        df['X'] = ts.x
+        df['Y'] = ts.y
+        df['Z'] = ts.z
+        return df
+
     def create_dictionary(self):
         '''Create CIS or REAL dictionary. Dictionary keys are classes specified to sort by.
         Elements are lists of measurements.
@@ -287,6 +296,10 @@ class Dataset:
 
 
     def TS_preprocessing(self, ts):
+        if self.dataset_name == 'REAL':
+            ts = self.REAL_2_CIS_format(ts)
+        else:
+            pass
         ts = self.pad_ts(ts)
         ts = self.center_n(ts)
         ts = self.magnitude(ts)
@@ -294,15 +307,19 @@ class Dataset:
         return ts.to_numpy()
 
 
-    def run_preprocessing(self, specific_key_dataset=None, create_psuedo_samples=False,  k_neighbors=None):
+    def run_preprocessing(self, specific_key_dataset=None, create_synthetic_samples=False,  k_neighbors=None):
         '''
         specific_key_dataset (OPTIONAL): Pick a specific key to preprocess and create a torch dataset with.
 
         (^^^Use: For example, if data dictionary is sorted by subject id, select a specific subject to create a dataset to train with.)
 
-        create_psuedo_samples (OPTIONAL): When True, creates psuedo samples via SMOTE
+        create_synthetic_samples (OPTIONAL): When True, creates psuedo samples via SMOTE
 
-        k_neighbors (Mandatory when create_psuedo_samples=True): set the number of neighbors SMOTE uses to create psuedo samples.
+        k_neighbors (Mandatory when create_synthetic_samples=True): set the number of neighbors SMOTE uses to create psuedo samples.
+
+        Stage I == TS_preprocessing and creates synthetic samples
+
+        Stage II == spec_preprocessing, replace nan, and creates data list
 
         '''
         self.replaced_label_count = 0
@@ -313,7 +330,7 @@ class Dataset:
         else:   
             self.ensemble_preprocessed_dict = self.data_dict
         warnings.filterwarnings("ignore")
-        self.ensemble_preprocessed_dict = self.stage_1_preprocessing(self.ensemble_preprocessed_dict, create_psuedo_samples=create_psuedo_samples, k_neighbors=k_neighbors)
+        self.ensemble_preprocessed_dict = self.stage_1_preprocessing(self.ensemble_preprocessed_dict, create_synthetic_samples=create_synthetic_samples, k_neighbors=k_neighbors)
         for key, tup_list in tqdm(self.ensemble_preprocessed_dict.items(),'stage II Preprocessing',
                                  total=len(self.ensemble_preprocessed_dict),position=0, leave=True):
             for i, tup in enumerate(tup_list):
@@ -341,6 +358,11 @@ class Dataset:
         for key, tup_list in tqdm(self.preprocessed_test_dict.items(),'Preprocessing Test Data',
                                  total=len(self.preprocessed_test_dict),position=0, leave=True):
             for i, tup in enumerate(tup_list):
+                if self.dataset_name=='REAL': #Delete Gyro since not currently used
+                    try:
+                        del tup[6]
+                    except:
+                        pass
                 tup_list[i].append(self.TS_preprocessing(tup[0]))
                 tup_list[i][0] = self.spectrogram_preprocessing(tup[-1])
         for key, tup_list in self.preprocessed_test_dict.items():
@@ -358,9 +380,9 @@ class Dataset:
                 pass
         return self.label_sum // len(sample_dict[key])
 
-    def stage_1_preprocessing(self, ensemble_preprocessed_dict, create_psuedo_samples=False, k_neighbors=None):
+    def stage_1_preprocessing(self, ensemble_preprocessed_dict, create_synthetic_samples=False, k_neighbors=None):
         '''
-        Runs time series preprocessing and (optional) creates psuedo samples via SMOTE
+        Runs time series preprocessing and (optional) creates synthetic samples via SMOTE
         '''
         low_sample_count = []
         for key, tup_list in tqdm(ensemble_preprocessed_dict.items(),'Stage I Preprocessing',
@@ -368,9 +390,14 @@ class Dataset:
             if len(ensemble_preprocessed_dict[key]) < 150:
                 low_sample_count.append(key)
             for i, tup in enumerate(tup_list):
+                if self.dataset_name=='REAL': #Delete Gyro since not currently used
+                    try:
+                        del tup[6]
+                    except:
+                        pass
                 tup_list[i].append(self.TS_preprocessing(tup[0]))
                 tup_list[i][0] = self.TS_preprocessing(tup[0])
-        if create_psuedo_samples:
+        if create_synthetic_samples:
             for key in low_sample_count:
                 x_arr = np.array(ensemble_preprocessed_dict[key][0][0]).T
                 label_0 = ensemble_preprocessed_dict[key][0][self.label_index]
@@ -390,21 +417,18 @@ class Dataset:
                         for os_idx in oversamp_idx:
                             y_arr = np.append(y_arr, y_arr[os_idx])
                             x_arr = np.vstack((x_arr, x_arr[os_idx]))
-                print(low_sample_count)
-                print(class_counts)
-                print(np.unique(y_arr,return_counts=True))
                 sm = SMOTE(random_state=42,k_neighbors=k_neighbors,sampling_strategy='all')
                 X_res, y_res = sm.fit_resample(x_arr, y_arr)
-                X_res = X_res[x_arr.shape[0]:] # get only psuedo samples
-                y_res = y_res[x_arr.shape[0]:] # get only psuedo labels
+                X_res = X_res[x_arr.shape[0]:] # get only synthetic samples
+                y_res = y_res[x_arr.shape[0]:] # get only synthetic labels
                 for idx in range(X_res.shape[0]):
                     if idx % 4 == 0:
-                        psuedo_sample = X_res[idx:idx+4].T
-                        psuedo_label = y_res[idx]
-                        psuedo_id = 'psuedo'
+                        synthetic_sample = X_res[idx:idx+4].T
+                        synthetic_label = y_res[idx]
+                        synthetic_id = 'synthetic'
                         subject_id = key
-                        sample = [psuedo_sample, psuedo_id, subject_id, 0, 0, 0, psuedo_sample]
-                        sample[self.label_index] = psuedo_label
+                        sample = [synthetic_sample, synthetic_id, subject_id, 0, 0, 0, synthetic_sample]
+                        sample[self.label_index] = synthetic_label
                         ensemble_preprocessed_dict[key].append(sample)
         return ensemble_preprocessed_dict
 
