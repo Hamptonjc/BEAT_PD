@@ -2,7 +2,7 @@
 
 This is the repository for team EasedisPD's work on the 2020 [Biomarker and Endpoint Assessment to Track Parkinson's Disease Challenge (BEAT-PD)](https://www.synapse.org/#!Synapse:syn20825169/wiki/596118). The team was comprised of Jonathan Hampton (East Tennessee State University Undergraduate), Dr. Jeff Knisley, and Dr. Debra Knisley. 
 
-## Methods
+## Methods Summary
 The complete write up of the team's work can be found [here](https://www.synapse.org/#!Synapse:syn21784049/wiki/603034).
 
 For each subject in the challenge, two data representations are used with a neural network ensemble to train and make predictions for each of the sub-challenges (medication state, dyskinesia severity, tremor severity). The neural network ensemble is depicted in the graph below.
