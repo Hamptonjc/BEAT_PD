@@ -1,6 +1,6 @@
 # Specify filepatterns you want git to ignore.
 .DS_Store
 .ipynb_checkpoints
-SC* Notebook.Rmd
+Notebook.Rmd
 Data
 lightning_logs
